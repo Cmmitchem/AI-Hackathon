@@ -1,0 +1,1230 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+app/
+  _components/
+    DocumentSummary.tsx
+    DocumentUploader.tsx
+  api/
+    summarize/
+      route.ts
+  globals.css
+  layout.tsx
+  page.module.css
+  page.tsx
+backend/
+  process_document.py
+  requirements.txt
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+.gitignore
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package.json
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/_components/DocumentSummary.tsx">
+import { Box, Typography } from "@mui/material";
+interface DocumentSummaryProps {
+  summary: string;
+}
+export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
+  summary,
+}) => {
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        zIndex: 2,
+        width: "100%",
+        maxWidth: "800px",
+        padding: 2,
+        backgroundColor: "#5C6060",
+        borderRadius: 2,
+        boxShadow: 3,
+      }}
+    >
+      <Typography variant="h4" gutterBottom>
+        Document Summary
+      </Typography>
+      <Typography variant="body1">{summary}</Typography>
+    </Box>
+  );
+};
+</file>
+
+<file path="app/_components/DocumentUploader.tsx">
+import React, { useState, useRef } from "react";
+import axios from "axios";
+import { Box, Typography, Button, Paper, Stack } from "@mui/material";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import SendIcon from "@mui/icons-material/Send";
+
+interface DocumentUploaderProps {
+  onSummaryReceived: (summary: string) => void;
+  onUploadStarted: () => void;
+  onError: (error: string) => void;
+}
+export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
+  onSummaryReceived,
+  onUploadStarted,
+  onError,
+}) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedFile) {
+      onError("Please select a file to upload.");
+      return;
+    }
+
+    onUploadStarted();
+
+    const formData = new FormData();
+    formData.append("document", selectedFile);
+
+    try {
+      const response = await axios.post("/api/summarize", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.data && response.data.summary) {
+        onSummaryReceived(response.data.summary);
+      } else {
+        onError("No summary received from the server.");
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      onError("Failed to upload and process the document.");
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+  };
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      setSelectedFile(files[0]);
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <Box sx={{ width: "100%", maxWidth: "440px", mx: "auto" }}>
+      <Paper
+        elevation={0}
+        variant="outlined"
+        sx={{
+          border: "2px dashed",
+          borderColor: "grey.300",
+          borderRadius: 2,
+          p: 3,
+          textAlign: "center",
+        }}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {!selectedFile ? (
+          <>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Drag and drop a document here, or
+            </Typography>
+            <input
+              type="file"
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+              ref={fileInputRef}
+              accept=".pdf,.doc,.docx,.txt"
+              //style={{ display: "none" }}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => fileInputRef.current?.click()}
+              startIcon={<CloudUploadIcon />}
+            >
+              Select File
+            </Button>
+          </>
+        ) : (
+          <Box sx={{ py: 2 }}>
+            <Typography variant="body1" sx={{ mb: 1 }}>
+              Selected file:
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+              {selectedFile.name}
+            </Typography>
+            <Stack direction="row" spacing={2} justifyContent="center">
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={handleReset}
+                startIcon={<RestartAltIcon />}
+              >
+                Change File
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleSubmit}
+                startIcon={<SendIcon />}
+              >
+                Upload & Summarize
+              </Button>
+            </Stack>
+          </Box>
+        )}
+      </Paper>
+    </Box>
+  );
+};
+</file>
+
+<file path="app/api/summarize/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import { exec } from "child_process";
+import { writeFile } from "fs/promises";
+import * as path from "path";
+import { promisify } from "util";
+import { mkdir } from "fs/promises";
+
+const execPromise = promisify(exec);
+
+export async function POST(request: NextRequest) {
+  try {
+    // ensure uploads directory exists
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    try {
+      await mkdir(uploadsDir, { recursive: true });
+    } catch (error) {
+      console.log("Error creating uploads directory: ", error);
+      return NextResponse.json(
+        { error: "Failed to create uploads directory" },
+        { status: 500 }
+      );
+    }
+
+    // parse form data
+    const formData = await request.formData();
+    const file = formData.get("document") as File;
+
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+    }
+
+    //create a unique file name
+    const timestamp = Date.now();
+    const filename = `document_${timestamp}${path.extname(file.name)}`;
+    const filepath = path.join(uploadsDir, filename);
+
+    // convert file to buffer and save it
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    await writeFile(filepath, buffer);
+
+    // execute python script to summarize the document
+    const pythonScriptPath = path.join(
+      process.cwd(),
+      "backend",
+      "process_document.py"
+    );
+
+    const pythonCommand =
+      process.env.NODE_ENV === "production"
+        ? path.join(
+            process.cwd(),
+            "backend",
+            "venv",
+            process.platform === "win32" ? "Scripts" : "bin",
+            "python"
+          )
+        : "python";
+
+    console.log(
+      "About to execute python script: ",
+      pythonCommand,
+      pythonScriptPath,
+      filepath
+    );
+    // const { stdout, stderr } = await execPromise(
+    //   `python ${pythonScriptPath} "${filepath}"`
+    // );
+    const { stdout, stderr } = await execPromise(
+      `${pythonCommand} "${pythonScriptPath}" "${filepath}"`,
+      {
+        env: {
+          ...process.env,
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        },
+      }
+    );
+
+    console.log("Python execution complete");
+    console.log("stdout: ", stdout);
+
+    if (stderr) {
+      console.error("python script stderror:", stderr);
+      return NextResponse.json(
+        { error: "Error processing document." },
+        { status: 500 }
+      );
+    }
+
+    let summary;
+    try {
+      summary = JSON.parse(stdout).summary;
+    } catch (error) {
+      console.error("Error parsing python script output: ", error);
+      return NextResponse.json(
+        {
+          error: "Error parsing summary",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ summary });
+  } catch (error) {
+    console.error("Error handling file upload: ", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+</file>
+
+<file path="backend/process_document.py">
+import os 
+import sys 
+import json 
+import base64
+import requests
+import base64
+import mimetypes
+from pathlib import Path 
+
+from docx import Document
+import PyPDF2
+import io
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+def extract_text_from_docx(file_path):
+    """Extract text from a word document (.docx)"""
+    try: 
+        doc = Document(file_path)
+        full_text = []
+
+        #extract text from each paragraph
+        for para in doc.paragraphs: 
+            full_text.append(para.text)
+
+        for table in doc.tables:
+            for row in table.row: 
+                for cell in row.cells: 
+                    full_text.append(cell.text)
+
+        return '\n'.join(full_text)
+    except Exception as e: 
+        raise Exception(f"Error extracting text from word document: {str(e)}")
+    
+def extract_text_from_pdf(file_path):
+    """Extract text from a PDF doc"""
+    try: 
+        with open(file_path, 'rb') as file: 
+            pdf_reader = PyPDF2.PdfReader(file)
+            full_text=[]
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                full_text.append(page.extract_text())
+            return '\n'.join(full_text)
+    except Exception as e:
+        Exception(f"Error extracting text from PDF: {str(e)}")
+
+def get_document_text(file_path):
+    """Extract text from document based on file type"""
+    file_extension = Path(file_path).suffix.lower()
+
+    if file_extension == '.docx': 
+        return extract_text_from_docx(file_path)
+    elif file_extension == '.pdf':
+        return extract_text_from_pdf(file_path)
+    elif file_extension in ['.txt', '.md', '.csv']:
+        # for text files read the content
+        with open(file_path, 'r', encoding='utf-8', errors="ignore") as file:
+            return file.read()
+        
+    else: 
+        raise Exception(f"unsupported file format: {file_extension}. Supported formats are .docx, .pdf,.txt, .md, and .csv")
+
+def  get_document_summary(file_path):
+    """Send document to openAI API and get summary response"""
+    if not OPENAI_API_KEY: 
+        raise ValueError("OpenAI API key not found, please set the OPENAI_API_KEY env variable.")
+    
+    #get file content 
+    document_text = get_document_text(file_path)
+    
+    # prepare the API request
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    #create message payload 
+    payload = {
+        "model": 'gpt-4o', 
+        "max_tokens": 1000, 
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a document analysis assistant that provides concise summaries, extracts key points, and identifies next steps from documents. Focus on the most important information."
+            },
+            {
+                "role": "user", 
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"""Please analyze this document and provide: 1) A concise summary, 2) The key points or takeaways and 3) Recommended next steps or actions based on the content. Here is the document content: {document_text}"""
+                    },
+                    
+                ]
+            }
+        ]
+    }
+
+    # make the API request
+    response = requests.post(
+        "https://api.openai.com/v1/chat/completions", 
+        headers=headers,
+        json=payload
+    )
+
+    #handle the openAi response
+    if response.status_code != 200:
+        print(f'Error: {response.status_code}')
+        print(response.text)
+        raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
+    
+    response_data = response.json()
+    summary = response_data["choices"][0]["message"]["content"]
+
+    return summary
+
+def main():
+    """Main function to process the document"""
+    if len(sys.argv) != 2: 
+        print("Usage: python process_document.py <file_path>")
+        sys.exit(1)
+    
+    file_path = sys.argv[1]
+    if not os.path.exists(file_path): 
+        print(f"Error: file {file_path} does not exist")
+        sys.exit(1)
+
+        #check if api key is not set 
+        if not OPENAI_API_KEY: 
+            print(json.dumps({"error": "OpenAI API key not found, please set the OPENAI_API_KEY env variable"}))
+            sys.exit(1)
+    
+    try: 
+        #get doc summary from openAI
+        summary = get_document_summary(file_path)
+
+        print(json.dumps({"summary": summary}))
+
+    except Exception as e: 
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+</file>
+
+<file path="backend/requirements.txt">
+requests>=2.28.0
+python-docx>=0.8.11
+PyPDF2>=2.11.1
+</file>
+
+<file path="app/globals.css">
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "AI Illuminati Document Summarizer",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        {children}
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/page.module.css">
+.page {
+  --gray-rgb: 0, 0, 0;
+  --gray-alpha-200: rgba(var(--gray-rgb), 0.08);
+  --gray-alpha-100: rgba(var(--gray-rgb), 0.05);
+
+  --button-primary-hover: #383838;
+  --button-secondary-hover: #f2f2f2;
+
+  display: grid;
+  grid-template-rows: 20px 1fr 20px;
+  align-items: center;
+  justify-items: center;
+  min-height: 100svh;
+  padding: 80px;
+  gap: 64px;
+  font-family: var(--font-geist-sans);
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --gray-rgb: 255, 255, 255;
+    --gray-alpha-200: rgba(var(--gray-rgb), 0.145);
+    --gray-alpha-100: rgba(var(--gray-rgb), 0.06);
+
+    --button-primary-hover: #ccc;
+    --button-secondary-hover: #1a1a1a;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  grid-row-start: 2;
+}
+
+.main ol {
+  font-family: var(--font-geist-mono);
+  padding-left: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+  list-style-position: inside;
+}
+
+.main li:not(:last-of-type) {
+  margin-bottom: 8px;
+}
+
+.main code {
+  font-family: inherit;
+  background: var(--gray-alpha-100);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.ctas {
+  display: flex;
+  gap: 16px;
+}
+
+.ctas a {
+  appearance: none;
+  border-radius: 128px;
+  height: 48px;
+  padding: 0 20px;
+  border: none;
+  border: 1px solid transparent;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+a.primary {
+  background: var(--foreground);
+  color: var(--background);
+  gap: 8px;
+}
+
+a.secondary {
+  border-color: var(--gray-alpha-200);
+  min-width: 158px;
+}
+
+.footer {
+  grid-row-start: 3;
+  display: flex;
+  gap: 24px;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer img {
+  flex-shrink: 0;
+}
+
+/* Enable hover only on non-touch devices */
+@media (hover: hover) and (pointer: fine) {
+  a.primary:hover {
+    background: var(--button-primary-hover);
+    border-color: transparent;
+  }
+
+  a.secondary:hover {
+    background: var(--button-secondary-hover);
+    border-color: transparent;
+  }
+
+  .footer a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 32px;
+    padding-bottom: 80px;
+  }
+
+  .main {
+    align-items: center;
+  }
+
+  .main ol {
+    text-align: center;
+  }
+
+  .ctas {
+    flex-direction: column;
+  }
+
+  .ctas a {
+    font-size: 14px;
+    height: 40px;
+    padding: 0 16px;
+  }
+
+  a.secondary {
+    min-width: auto;
+  }
+
+  .footer {
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .logo {
+    filter: invert();
+  }
+}
+</file>
+
+<file path="app/page.tsx">
+"use client";
+
+import Image from "next/image";
+import illuminatiBackground from "../public/IlluminatiBackground.jpg";
+import { Box, Button, Container, Typography } from "@mui/material";
+import { useState } from "react";
+import { DocumentUploader } from "./_components/DocumentUploader";
+import { DocumentSummary } from "./_components/DocumentSummary";
+
+export default function Home() {
+  const [summary, setSummary] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  const handleSummaryReceived = (summaryText: string) => {
+    setSummary(summaryText);
+    setIsLoading(false);
+  };
+
+  const handleUploadStarted = () => {
+    setIsLoading(true);
+    setSummary("");
+    setError("");
+  };
+
+  const handleError = (errorMessage: string) => {
+    setError(errorMessage);
+    setIsLoading(false);
+  };
+
+  return (
+    <Container maxWidth="xl" disableGutters>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          //justifyContent: "center",
+          height: "100%",
+          minHeight: "100vh",
+          overflowY: "auto",
+          position: "relative",
+        }}
+      >
+        <Image
+          src={illuminatiBackground}
+          alt="Illuminati Background"
+          layout="fill"
+          objectFit="cover"
+          //style={{ position: "fixed" }}
+        />
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "100px 20px 40px 20px",
+            width: "100%",
+            maxWidth: "800px",
+            margin: "0 auto",
+          }}
+        >
+          <Typography
+            variant="h1"
+            sx={{
+              position: "fixed",
+              top: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              mt: 4, // margin from the very top, adjust as needed
+              color: "#fff",
+              fontFamily: "'Oswald', sans-serif",
+              fontWeight: 700,
+              letterSpacing: 2,
+              textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+              zIndex: 2,
+            }}
+          >
+            ILLUMINATI
+          </Typography>
+
+          {/* <Button
+            size="large"
+            sx={{
+              fontSize: "32px",
+              borderRadius: "20px",
+              bgcolor: "#134074",
+              color: "#FFFF",
+              mb: 2,
+            }}
+          >
+            Upload Audio Recording
+          </Button>
+          <Typography
+            variant="h2"
+            color="#FFFF"
+            sx={{ fontFamily: "'Oswald', sans-serif" }}
+          >
+            {" "}
+            OR
+          </Typography>
+          <Button
+            size="large"
+            sx={{
+              fontSize: "32px",
+              borderRadius: "20px",
+              bgcolor: "#134074",
+              color: "#FFFF",
+            }}
+          >
+            Start Recording{" "}
+          </Button> */}
+
+          <Box sx={{ marginTop: "80px", width: "100%" }}>
+            <DocumentUploader
+              onSummaryReceived={handleSummaryReceived}
+              onUploadStarted={handleUploadStarted}
+              onError={handleError}
+            />
+            {isLoading && (
+              <Box sx={{ mt: 8, alignItems: "center" }}>
+                <Typography variant="h6" color="primary">
+                  Processing your document...
+                </Typography>
+                <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+                </Box>
+              </Box>
+            )}
+
+            {error && (
+              <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
+                <Typography variant="h6">{error}</Typography>
+              </Box>
+            )}
+
+            {summary && (
+              <Box sx={{ mt: 6, mb: 6 }}>
+                <DocumentSummary summary={summary} />
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Container>
+  );
+}
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs generated by jscoverage/JSCover
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Snowpack dependency directory (https://snowpack.dev/)
+web_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+out
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+# Comment in the public line in if your project uses Gatsby and not Next.js
+# https://nextjs.org/blog/next-9-1#public-directory-support
+# public
+
+# vuepress build output
+.vuepress/dist
+
+# vuepress v2.x temp and cache directory
+.temp
+.cache
+
+# vitepress build output
+**/.vitepress/dist
+
+# vitepress cache directory
+**/.vitepress/cache
+
+# Docusaurus cache and generated files
+.docusaurus
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+</file>
+
+<file path="eslint.config.mjs">
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+];
+
+export default eslintConfig;
+</file>
+
+<file path="next-env.d.ts">
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="package.json">
+{
+  "name": "ai-illuminati",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.0.2",
+    "@mui/material": "^7.0.2",
+    "axios": "^1.9.0",
+    "formidable": "^3.5.4",
+    "next": "15.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/formidable": "^3.4.5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+To start python virtual environment:
+source backend/venv/bin/activate
+</file>
+
+</files>
