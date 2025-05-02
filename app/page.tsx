@@ -1,9 +1,33 @@
+"use client";
+
 import Image from "next/image";
-import styles from "./page.module.css";
 import illuminatiBackground from "../public/IlluminatiBackground.jpg";
 import { Box, Button, Container, Typography } from "@mui/material";
+import { useState } from "react";
+import { DocumentUploader } from "./_components/DocumentUploader";
+import { DocumentSummary } from "./_components/DocumentSummary";
 
 export default function Home() {
+  const [summary, setSummary] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  const handleSummaryReceived = (summaryText: string) => {
+    setSummary(summaryText);
+    setIsLoading(false);
+  };
+
+  const handleUploadStarted = () => {
+    setIsLoading(true);
+    setSummary("");
+    setError("");
+  };
+
+  const handleError = (errorMessage: string) => {
+    setError(errorMessage);
+    setIsLoading(false);
+  };
+
   return (
     <Container maxWidth="xl" disableGutters>
       <Box
@@ -11,8 +35,11 @@ export default function Home() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
+          //justifyContent: "center",
+          height: "100%",
+          minHeight: "100vh",
+          overflowY: "auto",
+          position: "relative",
         }}
       >
         <Image
@@ -20,6 +47,7 @@ export default function Home() {
           alt="Illuminati Background"
           layout="fill"
           objectFit="cover"
+          //style={{ position: "fixed" }}
         />
         <Box
           sx={{
@@ -28,14 +56,16 @@ export default function Home() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            height: "100vh",
+            padding: "100px 20px 40px 20px",
+            width: "100%",
+            maxWidth: "800px",
+            margin: "0 auto",
           }}
         >
           <Typography
             variant="h1"
             sx={{
-              position: "absolute",
+              position: "fixed",
               top: 0,
               left: "50%",
               transform: "translateX(-50%)",
@@ -51,7 +81,7 @@ export default function Home() {
             ILLUMINATI
           </Typography>
 
-          <Button
+          {/* <Button
             size="large"
             sx={{
               fontSize: "32px",
@@ -81,7 +111,37 @@ export default function Home() {
             }}
           >
             Start Recording{" "}
-          </Button>
+          </Button> */}
+
+          <Box sx={{ marginTop: "80px", width: "100%" }}>
+            <DocumentUploader
+              onSummaryReceived={handleSummaryReceived}
+              onUploadStarted={handleUploadStarted}
+              onError={handleError}
+            />
+            {isLoading && (
+              <Box sx={{ mt: 8, alignItems: "center" }}>
+                <Typography variant="h6" color="primary">
+                  Processing your document...
+                </Typography>
+                <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+                </Box>
+              </Box>
+            )}
+
+            {error && (
+              <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
+                <Typography variant="h6">{error}</Typography>
+              </Box>
+            )}
+
+            {summary && (
+              <Box sx={{ mt: 6, mb: 6 }}>
+                <DocumentSummary summary={summary} />
+              </Box>
+            )}
+          </Box>
         </Box>
       </Box>
     </Container>
