@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Caroline Mitchem",
+      "email": "caroline.mitchem@capco.com",
+      "password": "password123"
+    }
+  ]
+}

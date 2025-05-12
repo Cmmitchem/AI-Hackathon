@@ -46,11 +46,29 @@ The content is organized as follows:
 <directory_structure>
 app/
   _components/
+    AppLayout.tsx
+    AuthProvider.tsx
     DocumentSummary.tsx
     DocumentUploader.tsx
+    Sidebar.tsx
+    UserProfile.tsx
   api/
+    auth/
+      [...nextauth]/
+        route.ts
     summarize/
       route.ts
+  features/
+    page.tsx
+  lib/
+    auth.ts
+  login/
+    callback/
+      page.tsx
+    page.tsx
+  team/
+    page.tsx
+  auth.ts
   globals.css
   layout.tsx
   page.module.css
@@ -64,8 +82,11 @@ public/
   next.svg
   vercel.svg
   window.svg
+types/
+  next-auth.d.ts
 .gitignore
 eslint.config.mjs
+middleware.ts
 next-env.d.ts
 next.config.ts
 package.json
@@ -76,13 +97,1089 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
-<file path="app/_components/DocumentSummary.tsx">
+<file path="app/_components/AppLayout.tsx">
+"use client";
+
+import { useState, useEffect } from "react";
+import { Box, Container } from "@mui/material";
+import Image from "next/image";
+import illuminatiBackground from "@/public/IlluminatiBackground.jpg";
+import { Sidebar } from "./Sidebar";
+import { UserProfile } from "./UserProfile";
+import { useRouter } from "next/navigation";
+
+interface SummaryItem {
+  id: string;
+  fileName: string;
+  summary: string;
+  timestamp: Date;
+}
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function AppLayout({ children }: AppLayoutProps) {
+  const [summaries, setSummaries] = useState<SummaryItem[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const router = useRouter();
+
+  // Load saved summaries from localStorage on initial render
+  useEffect(() => {
+    const savedSummaries = localStorage.getItem("documentSummaries");
+    if (savedSummaries) {
+      try {
+        const parsedSummaries = JSON.parse(savedSummaries).map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp),
+        }));
+        setSummaries(parsedSummaries);
+      } catch (e) {
+        console.error("Error parsing saved summaries:", e);
+      }
+    }
+  }, []);
+
+  const handleSummarySelect = (selectedSummary: SummaryItem) => {
+    // Navigate to home page and pass the selected summary
+    router.push(`/?summaryId=${selectedSummary.id}`);
+
+    // On mobile, close the sidebar after selection
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    // Navigate to home page for new chat
+    router.push("/");
+
+    // On mobile, close the sidebar after starting new chat
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen((prev) => !prev);
+  };
+
+  return (
+    <Container maxWidth="xl" disableGutters>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          height: "100%",
+          minHeight: "100vh",
+          overflowY: "auto",
+          position: "relative",
+        }}
+      >
+        <Image
+          src={illuminatiBackground}
+          alt="Illuminati Background"
+          layout="fill"
+          objectFit="cover"
+        />
+
+        {/* Sidebar */}
+        <Sidebar
+          summaries={summaries}
+          onSummarySelect={handleSummarySelect}
+          onNewChat={handleNewChat}
+          isOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
+        />
+
+        <UserProfile />
+
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "100px 20px 40px 20px",
+            width: {
+              xs: "100%",
+              md: `calc(100% - ${isSidebarOpen ? "280px" : "50px"})`,
+            },
+            maxWidth: "1200px",
+            marginLeft: {
+              xs: "auto",
+              md: isSidebarOpen ? "280px" : "50px",
+            },
+            marginRight: "auto",
+            transition: "width 0.3s ease, margin-left 0.3s ease",
+          }}
+        >
+          {children}
+        </Box>
+      </Box>
+    </Container>
+  );
+}
+</file>
+
+<file path="app/_components/AuthProvider.tsx">
+"use client";
+
+import { SessionProvider } from "next-auth/react";
+import { ReactNode } from "react";
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export default function AuthProvider({ children }: AuthProviderProps) {
+  return <SessionProvider>{children}</SessionProvider>;
+}
+</file>
+
+<file path="app/_components/Sidebar.tsx">
+"use client";
+
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Typography,
+  Divider,
+  IconButton,
+  Button,
+  Collapse,
+} from "@mui/material";
+import DescriptionIcon from "@mui/icons-material/Description";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import AddIcon from "@mui/icons-material/Add";
+import FeaturedPlayListIcon from "@mui/icons-material/FeaturedPlayList";
+import GroupIcon from "@mui/icons-material/Group";
+import NoteIcon from "@mui/icons-material/Note";
+import ExpandLess from "@mui/icons-material/ExpandLess";
+import ExpandMore from "@mui/icons-material/ExpandMore";
+import { useRouter } from "next/navigation";
+
+interface SummaryItem {
+  id: string;
+  fileName: string;
+  summary: string;
+  timestamp: Date;
+}
+
+interface SidebarProps {
+  summaries: SummaryItem[];
+  onSummarySelect: (summary: SummaryItem) => void;
+  onNewChat: () => void;
+  isOpen: boolean;
+  toggleSidebar: () => void;
+  onNavigate?: (page: string) => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  summaries,
+  onSummarySelect,
+  onNewChat,
+  isOpen,
+  toggleSidebar,
+  onNavigate,
+}) => {
+  const router = useRouter();
+
+  const handleNavigation = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      router.push(path);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Sidebar received summaries:", summaries);
+  }, [summaries]);
+
+  const [openSection, setOpenSection] = useState("documentHistory");
+  const toggleSection = (section: string) => {
+    setOpenSection(openSection === section ? "" : section);
+  };
+
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    }).format(date);
+  };
+
+  // Navigation sections configuration
+  const sections = [
+    {
+      id: "features",
+      label: "Features",
+      icon: <FeaturedPlayListIcon />,
+      path: "/features",
+    },
+    {
+      id: "team",
+      label: "Team",
+      icon: <GroupIcon />,
+      path: "/team",
+    },
+    {
+      id: "documentHistory",
+      label: "Document History",
+      icon: <NoteIcon />,
+      content: true,
+    },
+  ];
+
+  return (
+    <Box
+      sx={{
+        position: "fixed",
+        zIndex: 10,
+        left: 0,
+        top: 0,
+        height: "100vh",
+        width: isOpen ? 280 : 50,
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backdropFilter: "blur(5px)",
+        transition: "width 0.3s ease",
+        display: "flex",
+        flexDirection: "column",
+        color: "#fff",
+        borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: isOpen ? "space-between" : "center",
+          p: 2,
+          height: 64,
+        }}
+      >
+        {isOpen && (
+          <Typography variant="h6" noWrap component="div">
+            Dashboard
+          </Typography>
+        )}
+        {/* <IconButton
+          onClick={toggleSidebar}
+          sx={{ color: "#fff" }}
+          aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {isOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+        </IconButton> */}
+      </Box>
+
+      <Divider sx={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }} />
+
+      <Box sx={{ overflow: "auto", flexGrow: 1 }}>
+        {isOpen && (
+          <List>
+            {sections.map((section) => (
+              <React.Fragment key={section.id}>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={
+                      section.content
+                        ? () => toggleSection(section.id)
+                        : () => handleNavigation(section.path ?? "/")
+                    }
+                    sx={{
+                      py: 1.5,
+                      "&:hover": {
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                      },
+                    }}
+                  >
+                    <Box sx={{ mr: 2, opacity: 0.7 }}>{section.icon}</Box>
+                    <ListItemText
+                      primary={section.label}
+                      sx={{ color: "#fff" }}
+                    />
+                    {section.content &&
+                      (openSection === section.id ? (
+                        <ExpandLess />
+                      ) : (
+                        <ExpandMore />
+                      ))}
+                  </ListItemButton>
+                </ListItem>
+
+                {section.content && (
+                  <Collapse
+                    in={openSection === section.id}
+                    timeout="auto"
+                    unmountOnExit
+                  >
+                    <Box sx={{ p: 2 }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="primary"
+                        startIcon={<AddIcon />}
+                        onClick={onNewChat}
+                        sx={{
+                          backgroundColor: "rgba(255, 255, 255, 0.15)",
+                          "&:hover": {
+                            backgroundColor: "rgba(255, 255, 255, 0.25)",
+                          },
+                          mb: 2,
+                        }}
+                      >
+                        Start New Chat
+                      </Button>
+                    </Box>
+
+                    <List component="div" disablePadding>
+                      {Array.isArray(summaries) && summaries.length > 0 ? (
+                        summaries.map((item) => (
+                          <ListItemButton
+                            key={item.id}
+                            sx={{ pl: 4 }}
+                            onClick={() => onSummarySelect(item)}
+                          >
+                            <DescriptionIcon sx={{ mr: 2, opacity: 0.7 }} />
+                            <ListItemText
+                              primary={item.fileName}
+                              secondary={formatDate(new Date(item.timestamp))}
+                              primaryTypographyProps={{
+                                noWrap: true,
+                                color: "#fff",
+                              }}
+                              secondaryTypographyProps={{
+                                noWrap: true,
+                                color: "rgba(255, 255, 255, 0.7)",
+                              }}
+                            />
+                          </ListItemButton>
+                        ))
+                      ) : (
+                        <Box sx={{ p: 2, textAlign: "center", opacity: 0.7 }}>
+                          <Typography variant="body2">
+                            No document summaries yet. Upload a document to get
+                            started.
+                          </Typography>
+                        </Box>
+                      )}
+                    </List>
+                  </Collapse>
+                )}
+              </React.Fragment>
+            ))}
+          </List>
+        )}
+
+        {!isOpen && Array.isArray(summaries) && summaries.length === 0 && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              opacity: 0.7,
+            }}
+          >
+            <DescriptionIcon sx={{ fontSize: 24, mb: 1 }} />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+</file>
+
+<file path="app/_components/UserProfile.tsx">
+"use client";
+
+import { useSession, signOut } from "next-auth/react";
+import { Box, Button, Avatar, Typography } from "@mui/material";
+import { useState } from "react";
+import LogoutIcon from "@mui/icons-material/Logout";
+
+export const UserProfile: React.FC = () => {
+  // Use destructuring with default values to prevent error if session is undefined
+  const { data: session, status } = useSession();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Show loading state or nothing if still loading or not authenticated
+  if (status === "loading") {
+    return null;
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: "/login" });
+  };
+
+  return (
+    <Box
+      sx={{
+        position: "absolute",
+        top: 20,
+        right: 20,
+        zIndex: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          bgcolor: "rgba(0, 0, 0, 0.5)",
+          p: 1,
+          borderRadius: 2,
+          color: "white",
+        }}
+      >
+        <Avatar sx={{ width: 32, height: 32 }}>
+          {session.user?.name?.[0] || "U"}
+        </Avatar>
+        <Typography variant="body2">{session.user?.name || "User"}</Typography>
+        <Button
+          size="small"
+          onClick={handleSignOut}
+          sx={{
+            color: "white",
+            minWidth: "unset",
+            p: "4px",
+          }}
+          title="Sign Out"
+        >
+          <LogoutIcon fontSize="small" />
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+</file>
+
+<file path="app/api/auth/[...nextauth]/route.ts">
+// app/api/auth/[...nextauth]/route.ts
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import type { NextAuthOptions } from "next-auth";
+
+// For a simple demo, we'll use a hardcoded list of users
+// In a real app, you would use a database
+const users = [
+  {
+    id: "1",
+    name: "Admin User",
+    email: "caroline.mitchem@oncor.com",
+    password: "password123", // In a real app, NEVER store passwords in plain text
+  },
+];
+
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      // The name to display on the sign in form (e.g. "Sign in with...")
+      name: "Email & Password",
+      // The credentials is used to generate a suitable form on the sign in page.
+      credentials: {
+        email: {
+          label: "Email",
+          type: "email",
+          placeholder: "admin@example.com",
+        },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        // Add logic here to look up the user from the credentials supplied
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const user = users.find((user) => user.email === credentials.email);
+
+        if (user && user.password === credentials.password) {
+          // Any object returned will be saved in `user` property of the JWT
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+          };
+        } else {
+          // If you return null then an error will be displayed advising the user to check their details.
+          return null;
+        }
+      },
+    }),
+  ],
+  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  pages: {
+    signIn: "/login",
+    signOut: "/login",
+    error: "/login",
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+      }
+      return session;
+    },
+  },
+  debug: process.env.NODE_ENV === "development",
+};
+
+const handler = NextAuth(authOptions);
+export { handler as GET, handler as POST };
+</file>
+
+<file path="app/features/page.tsx">
+"use client";
+
 import { Box, Typography } from "@mui/material";
+
+export default function Features() {
+  return (
+    <>
+      <Typography
+        variant="h1"
+        sx={{
+          top: 0,
+          mt: 2,
+          color: "#fff",
+          fontFamily: "'Oswald', sans-serif",
+          fontWeight: 700,
+          letterSpacing: 2,
+          textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+          zIndex: 2,
+          transition: "transform 0.3s ease",
+        }}
+      >
+        Features
+      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          mt: 6,
+          width: "100%",
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            gap: 4,
+            mb: 4,
+            flexWrap: { xs: "wrap", md: "nowrap" },
+          }}
+        >
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            1
+          </Typography>
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            2
+          </Typography>
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            3
+          </Typography>
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            4
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            mb: 6,
+            gap: 4,
+            flexWrap: { xs: "wrap", md: "nowrap" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Record Meeting Audio
+          </Typography>
+
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Generate Notes Summary
+          </Typography>
+
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Review Notes and Summaries
+          </Typography>
+
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Use Notes Agent to query all saved notes
+          </Typography>
+        </Box>
+      </Box>
+    </>
+  );
+}
+</file>
+
+<file path="app/lib/auth.ts">
+// lib/auth.ts
+import { getServerSession } from "next-auth/next";
+import { NextRequest, NextResponse } from "next/server";
+import { redirect } from "next/navigation";
+
+// Authentication middleware
+export async function authMiddleware(req: NextRequest) {
+  const session = await getServerSession();
+
+  if (!session) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  return NextResponse.next();
+}
+
+// Get session on the server side
+export async function getSession() {
+  const session = await getServerSession();
+  return session;
+}
+
+// Check if authenticated on the server side and redirect if not
+export async function requireAuth() {
+  const session = await getSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  return session;
+}
+</file>
+
+<file path="app/login/callback/page.tsx">
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Box, CircularProgress, Typography } from "@mui/material";
+
+export default function CallbackPage() {
+  const router = useRouter();
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/");
+    } else if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        gap: 2,
+      }}
+    >
+      <CircularProgress size={60} />
+      <Typography variant="h6">Processing your login...</Typography>
+    </Box>
+  );
+}
+</file>
+
+<file path="app/login/page.tsx">
+"use client";
+
+import { useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Box,
+  Button,
+  Container,
+  Typography,
+  TextField,
+  Paper,
+  Alert,
+} from "@mui/material";
+import Image from "next/image";
+import illuminatiBackground from "../../public/IlluminatiBackground.jpg";
+
+export default function Login() {
+  const [email, setEmail] = useState("admin@example.com");
+  const [password, setPassword] = useState("password123");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
+
+  // Check for error in URL
+  useEffect(() => {
+    const errorParam = searchParams?.get("error");
+    if (errorParam) {
+      if (errorParam === "CredentialsSignin") {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError("An error occurred during sign-in. Please try again.");
+      }
+    }
+  }, [searchParams]);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/");
+    }
+  }, [status, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError("Invalid email or password. Please try again.");
+        setIsLoading(false);
+      } else {
+        // Success, will be redirected by the useEffect above
+      }
+    } catch (err) {
+      console.error("Error during sign-in:", err);
+      setError("An error occurred during sign-in.");
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Container maxWidth="xl" disableGutters>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          height: "100%",
+          minHeight: "100vh",
+          overflowY: "auto",
+          position: "relative",
+        }}
+      >
+        <Image
+          src={illuminatiBackground}
+          alt="Illuminati Background"
+          layout="fill"
+          objectFit="cover"
+        />
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            width: "100%",
+            maxWidth: "500px",
+            margin: "0 auto",
+            height: "100vh",
+          }}
+        >
+          <Typography
+            variant="h1"
+            sx={{
+              position: "fixed",
+              top: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              mt: 4,
+              color: "#fff",
+              fontFamily: "'Oswald', sans-serif",
+              fontWeight: 700,
+              letterSpacing: 2,
+              textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+              zIndex: 2,
+            }}
+          >
+            ILLUMINATI
+          </Typography>
+
+          <Paper
+            elevation={6}
+            sx={{
+              p: 4,
+              width: "100%",
+              maxWidth: "400px",
+              backgroundColor: "rgba(255, 255, 255, 0.9)",
+              borderRadius: 2,
+            }}
+          >
+            <Typography variant="h4" align="center" gutterBottom>
+              Sign In
+            </Typography>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <TextField
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                fullWidth
+                margin="normal"
+                required
+                disabled={isLoading}
+              />
+
+              <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                margin="normal"
+                required
+                disabled={isLoading}
+              />
+
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                fullWidth
+                size="large"
+                disabled={isLoading}
+                sx={{ mt: 3, mb: 2, bgcolor: "#134074" }}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" align="center" color="textSecondary">
+                Use the default credentials:
+              </Typography>
+              <Typography variant="body2" align="center" color="textSecondary">
+                Email: admin@example.com
+              </Typography>
+              <Typography variant="body2" align="center" color="textSecondary">
+                Password: password123
+              </Typography>
+            </Box>
+          </Paper>
+        </Box>
+      </Box>
+    </Container>
+  );
+}
+</file>
+
+<file path="app/team/page.tsx">
+import { Box, Typography } from "@mui/material";
+
+export default function Features() {
+  return (
+    <>
+      <Typography
+        variant="h1"
+        sx={{
+          top: 0,
+          mt: 2,
+          color: "#fff",
+          fontFamily: "'Oswald', sans-serif",
+          fontWeight: 700,
+          letterSpacing: 2,
+          textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+          zIndex: 2,
+          transition: "transform 0.3s ease",
+        }}
+      >
+        AI Illuminati Team
+      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          mt: 6,
+          width: "100%",
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            gap: 4,
+            mb: 4,
+            flexWrap: { xs: "wrap", md: "nowrap" },
+          }}
+        >
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            1
+          </Typography>
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            2
+          </Typography>
+          <Typography variant="h3" align="center" sx={{ flex: "1 1 0" }}>
+            3
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            mb: 6,
+            gap: 4,
+            flexWrap: { xs: "wrap", md: "nowrap" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Caroline Mitchem
+          </Typography>
+
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Jose Quintero
+          </Typography>
+
+          <Typography variant="h6" align="center" sx={{ flex: "1 1 0" }}>
+            Terrin Guerra
+          </Typography>
+        </Box>
+      </Box>
+    </>
+  );
+}
+</file>
+
+<file path="app/auth.ts">
+import { getServerSession } from "next-auth";
+import { authOptions } from "./api/auth/[...nextauth]/route";
+
+export async function getSession() {
+  return await getServerSession(authOptions);
+}
+
+export async function getCurrentUser() {
+  const session = await getSession();
+  return session?.user;
+}
+</file>
+
+<file path="types/next-auth.d.ts">
+import "next-auth";
+import { DefaultSession } from "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id?: string;
+    } & DefaultSession["user"];
+  }
+}
+</file>
+
+<file path="middleware.ts">
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Check if the pathname is for authentication or static files
+  const isAuthRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/favicon.ico";
+
+  if (isAuthRoute) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // If the user is not logged in, redirect to the login page
+  if (!token) {
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
+}
+
+// Add your protected routes here - exclude auth routes and static files
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api/auth (auth API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - login (login page)
+     */
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|login).*)",
+  ],
+};
+</file>
+
+<file path="app/_components/DocumentSummary.tsx">
+import { Box, Typography, Chip } from "@mui/material";
+import Description from "@mui/icons-material/Description";
+
 interface DocumentSummaryProps {
   summary: string;
+  fileName?: string;
 }
 export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
   summary,
+  fileName,
 }) => {
   return (
     <Box
@@ -97,9 +1194,18 @@ export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
         boxShadow: 3,
       }}
     >
-      <Typography variant="h4" gutterBottom>
-        Document Summary
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+        <Typography variant="h4" gutterBottom>
+          Document Summary
+        </Typography>
+        {fileName && (
+          <Chip
+            icon={<Description />}
+            label={fileName}
+            sx={{ ml: 2, backgroundColor: "rgba(255,255,255,0.2)" }}
+          ></Chip>
+        )}
+      </Box>
       <Typography variant="body1">{summary}</Typography>
     </Box>
   );
@@ -107,7 +1213,7 @@ export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
 </file>
 
 <file path="app/_components/DocumentUploader.tsx">
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Box, Typography, Button, Paper, Stack } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -116,9 +1222,11 @@ import SendIcon from "@mui/icons-material/Send";
 
 interface DocumentUploaderProps {
   onSummaryReceived: (summary: string) => void;
-  onUploadStarted: () => void;
+  onUploadStarted: (fileName: string) => void;
   onError: (error: string) => void;
+  key?: string; // Added to detect when parent component wants a reset
 }
+
 export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   onSummaryReceived,
   onUploadStarted,
@@ -127,9 +1235,19 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reset state when props change or component re-mounts
+  useEffect(() => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    console.log("DocumentUploader reset");
+  }, []);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
+      console.log("File selected:", files[0].name);
       setSelectedFile(files[0]);
     }
   };
@@ -141,7 +1259,9 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       return;
     }
 
-    onUploadStarted();
+    // CRITICAL: Always pass the filename to the parent component
+    console.log("Starting upload for file:", selectedFile.name);
+    onUploadStarted(selectedFile.name);
 
     const formData = new FormData();
     formData.append("document", selectedFile);
@@ -153,8 +1273,19 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         },
       });
 
+      console.log("Upload response:", response.data);
+
       if (response.data && response.data.summary) {
-        onSummaryReceived(response.data.summary);
+        console.log("Summary received, length:", response.data.summary.length);
+        // Make one more check that we're passing a summary to the callback
+        if (
+          typeof response.data.summary === "string" &&
+          response.data.summary.trim() !== ""
+        ) {
+          onSummaryReceived(response.data.summary);
+        } else {
+          onError("Received empty summary from server");
+        }
       } else {
         onError("No summary received from the server.");
       }
@@ -167,10 +1298,12 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
   };
+
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
+      console.log("File dropped:", files[0].name);
       setSelectedFile(files[0]);
     }
   };
@@ -180,6 +1313,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    console.log("File selection reset");
   };
 
   return (
@@ -208,7 +1342,6 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
               style={{ display: "none" }}
               ref={fileInputRef}
               accept=".pdf,.doc,.docx,.txt"
-              //style={{ display: "none" }}
             />
             <Button
               variant="contained"
@@ -367,160 +1500,6 @@ export async function POST(request: NextRequest) {
 }
 </file>
 
-<file path="backend/process_document.py">
-import os 
-import sys 
-import json 
-import base64
-import requests
-import base64
-import mimetypes
-from pathlib import Path 
-
-from docx import Document
-import PyPDF2
-import io
-
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
-def extract_text_from_docx(file_path):
-    """Extract text from a word document (.docx)"""
-    try: 
-        doc = Document(file_path)
-        full_text = []
-
-        #extract text from each paragraph
-        for para in doc.paragraphs: 
-            full_text.append(para.text)
-
-        for table in doc.tables:
-            for row in table.row: 
-                for cell in row.cells: 
-                    full_text.append(cell.text)
-
-        return '\n'.join(full_text)
-    except Exception as e: 
-        raise Exception(f"Error extracting text from word document: {str(e)}")
-    
-def extract_text_from_pdf(file_path):
-    """Extract text from a PDF doc"""
-    try: 
-        with open(file_path, 'rb') as file: 
-            pdf_reader = PyPDF2.PdfReader(file)
-            full_text=[]
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                full_text.append(page.extract_text())
-            return '\n'.join(full_text)
-    except Exception as e:
-        Exception(f"Error extracting text from PDF: {str(e)}")
-
-def get_document_text(file_path):
-    """Extract text from document based on file type"""
-    file_extension = Path(file_path).suffix.lower()
-
-    if file_extension == '.docx': 
-        return extract_text_from_docx(file_path)
-    elif file_extension == '.pdf':
-        return extract_text_from_pdf(file_path)
-    elif file_extension in ['.txt', '.md', '.csv']:
-        # for text files read the content
-        with open(file_path, 'r', encoding='utf-8', errors="ignore") as file:
-            return file.read()
-        
-    else: 
-        raise Exception(f"unsupported file format: {file_extension}. Supported formats are .docx, .pdf,.txt, .md, and .csv")
-
-def  get_document_summary(file_path):
-    """Send document to openAI API and get summary response"""
-    if not OPENAI_API_KEY: 
-        raise ValueError("OpenAI API key not found, please set the OPENAI_API_KEY env variable.")
-    
-    #get file content 
-    document_text = get_document_text(file_path)
-    
-    # prepare the API request
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    #create message payload 
-    payload = {
-        "model": 'gpt-4o', 
-        "max_tokens": 1000, 
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a document analysis assistant that provides concise summaries, extracts key points, and identifies next steps from documents. Focus on the most important information."
-            },
-            {
-                "role": "user", 
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"""Please analyze this document and provide: 1) A concise summary, 2) The key points or takeaways and 3) Recommended next steps or actions based on the content. Here is the document content: {document_text}"""
-                    },
-                    
-                ]
-            }
-        ]
-    }
-
-    # make the API request
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions", 
-        headers=headers,
-        json=payload
-    )
-
-    #handle the openAi response
-    if response.status_code != 200:
-        print(f'Error: {response.status_code}')
-        print(response.text)
-        raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
-    
-    response_data = response.json()
-    summary = response_data["choices"][0]["message"]["content"]
-
-    return summary
-
-def main():
-    """Main function to process the document"""
-    if len(sys.argv) != 2: 
-        print("Usage: python process_document.py <file_path>")
-        sys.exit(1)
-    
-    file_path = sys.argv[1]
-    if not os.path.exists(file_path): 
-        print(f"Error: file {file_path} does not exist")
-        sys.exit(1)
-
-        #check if api key is not set 
-        if not OPENAI_API_KEY: 
-            print(json.dumps({"error": "OpenAI API key not found, please set the OPENAI_API_KEY env variable"}))
-            sys.exit(1)
-    
-    try: 
-        #get doc summary from openAI
-        summary = get_document_summary(file_path)
-
-        print(json.dumps({"summary": summary}))
-
-    except Exception as e: 
-        print(json.dumps({"error": str(e)}), file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
-</file>
-
-<file path="backend/requirements.txt">
-requests>=2.28.0
-python-docx>=0.8.11
-PyPDF2>=2.11.1
-</file>
-
 <file path="app/globals.css">
 :root {
   --background: #ffffff;
@@ -563,41 +1542,6 @@ a {
   html {
     color-scheme: dark;
   }
-}
-</file>
-
-<file path="app/layout.tsx">
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "AI Illuminati Document Summarizer",
-  description: "Generated by create next app",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
-      </body>
-    </html>
-  );
 }
 </file>
 
@@ -772,156 +1716,158 @@ a.secondary {
 }
 </file>
 
-<file path="app/page.tsx">
-"use client";
+<file path="backend/process_document.py">
+import os 
+import sys 
+import json 
+import base64
+import requests
+import base64
+import mimetypes
+from pathlib import Path 
 
-import Image from "next/image";
-import illuminatiBackground from "../public/IlluminatiBackground.jpg";
-import { Box, Button, Container, Typography } from "@mui/material";
-import { useState } from "react";
-import { DocumentUploader } from "./_components/DocumentUploader";
-import { DocumentSummary } from "./_components/DocumentSummary";
+from docx import Document
+import PyPDF2
+import io
 
-export default function Home() {
-  const [summary, setSummary] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-  const handleSummaryReceived = (summaryText: string) => {
-    setSummary(summaryText);
-    setIsLoading(false);
-  };
+def extract_text_from_docx(file_path):
+    """Extract text from a word document (.docx)"""
+    try: 
+        doc = Document(file_path)
+        full_text = []
 
-  const handleUploadStarted = () => {
-    setIsLoading(true);
-    setSummary("");
-    setError("");
-  };
+        #extract text from each paragraph
+        for para in doc.paragraphs: 
+            full_text.append(para.text)
 
-  const handleError = (errorMessage: string) => {
-    setError(errorMessage);
-    setIsLoading(false);
-  };
+        for table in doc.tables:
+            for row in table.row: 
+                for cell in row.cells: 
+                    full_text.append(cell.text)
 
-  return (
-    <Container maxWidth="xl" disableGutters>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          //justifyContent: "center",
-          height: "100%",
-          minHeight: "100vh",
-          overflowY: "auto",
-          position: "relative",
-        }}
-      >
-        <Image
-          src={illuminatiBackground}
-          alt="Illuminati Background"
-          layout="fill"
-          objectFit="cover"
-          //style={{ position: "fixed" }}
-        />
-        <Box
-          sx={{
-            position: "relative",
-            zIndex: 2,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "100px 20px 40px 20px",
-            width: "100%",
-            maxWidth: "800px",
-            margin: "0 auto",
-          }}
-        >
-          <Typography
-            variant="h1"
-            sx={{
-              position: "fixed",
-              top: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              mt: 4, // margin from the very top, adjust as needed
-              color: "#fff",
-              fontFamily: "'Oswald', sans-serif",
-              fontWeight: 700,
-              letterSpacing: 2,
-              textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
-              zIndex: 2,
-            }}
-          >
-            ILLUMINATI
-          </Typography>
+        return '\n'.join(full_text)
+    except Exception as e: 
+        raise Exception(f"Error extracting text from word document: {str(e)}")
+    
+def extract_text_from_pdf(file_path):
+    """Extract text from a PDF doc"""
+    try: 
+        with open(file_path, 'rb') as file: 
+            pdf_reader = PyPDF2.PdfReader(file)
+            full_text=[]
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                full_text.append(page.extract_text())
+            return '\n'.join(full_text)
+    except Exception as e:
+        Exception(f"Error extracting text from PDF: {str(e)}")
 
-          {/* <Button
-            size="large"
-            sx={{
-              fontSize: "32px",
-              borderRadius: "20px",
-              bgcolor: "#134074",
-              color: "#FFFF",
-              mb: 2,
-            }}
-          >
-            Upload Audio Recording
-          </Button>
-          <Typography
-            variant="h2"
-            color="#FFFF"
-            sx={{ fontFamily: "'Oswald', sans-serif" }}
-          >
-            {" "}
-            OR
-          </Typography>
-          <Button
-            size="large"
-            sx={{
-              fontSize: "32px",
-              borderRadius: "20px",
-              bgcolor: "#134074",
-              color: "#FFFF",
-            }}
-          >
-            Start Recording{" "}
-          </Button> */}
+def get_document_text(file_path):
+    """Extract text from document based on file type"""
+    file_extension = Path(file_path).suffix.lower()
 
-          <Box sx={{ marginTop: "80px", width: "100%" }}>
-            <DocumentUploader
-              onSummaryReceived={handleSummaryReceived}
-              onUploadStarted={handleUploadStarted}
-              onError={handleError}
-            />
-            {isLoading && (
-              <Box sx={{ mt: 8, alignItems: "center" }}>
-                <Typography variant="h6" color="primary">
-                  Processing your document...
-                </Typography>
-                <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-                </Box>
-              </Box>
-            )}
+    if file_extension == '.docx': 
+        return extract_text_from_docx(file_path)
+    elif file_extension == '.pdf':
+        return extract_text_from_pdf(file_path)
+    elif file_extension in ['.txt', '.md', '.csv']:
+        # for text files read the content
+        with open(file_path, 'r', encoding='utf-8', errors="ignore") as file:
+            return file.read()
+        
+    else: 
+        raise Exception(f"unsupported file format: {file_extension}. Supported formats are .docx, .pdf,.txt, .md, and .csv")
 
-            {error && (
-              <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
-                <Typography variant="h6">{error}</Typography>
-              </Box>
-            )}
+def  get_document_summary(file_path):
+    """Send document to openAI API and get summary response"""
+    if not OPENAI_API_KEY: 
+        raise ValueError("OpenAI API key not found, please set the OPENAI_API_KEY env variable.")
+    
+    #get file content 
+    document_text = get_document_text(file_path)
+    
+    # prepare the API request
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-            {summary && (
-              <Box sx={{ mt: 6, mb: 6 }}>
-                <DocumentSummary summary={summary} />
-              </Box>
-            )}
-          </Box>
-        </Box>
-      </Box>
-    </Container>
-  );
-}
+    #create message payload 
+    payload = {
+        "model": 'gpt-4o', 
+        "max_tokens": 1000, 
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a document analysis assistant that provides concise summaries, extracts key points, and identifies next steps from documents. Focus on the most important information."
+            },
+            {
+                "role": "user", 
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"""Please analyze this document and provide: 1) A concise summary, 2) The key points or takeaways and 3) Recommended next steps or actions based on the content. Here is the document content: {document_text}"""
+                    },
+                    
+                ]
+            }
+        ]
+    }
+
+    # make the API request
+    response = requests.post(
+        "https://api.openai.com/v1/chat/completions", 
+        headers=headers,
+        json=payload
+    )
+
+    #handle the openAi response
+    if response.status_code != 200:
+        print(f'Error: {response.status_code}')
+        print(response.text)
+        raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
+    
+    response_data = response.json()
+    summary = response_data["choices"][0]["message"]["content"]
+
+    return summary
+
+def main():
+    """Main function to process the document"""
+    if len(sys.argv) != 2: 
+        print("Usage: python process_document.py <file_path>")
+        sys.exit(1)
+    
+    file_path = sys.argv[1]
+    if not os.path.exists(file_path): 
+        print(f"Error: file {file_path} does not exist")
+        sys.exit(1)
+
+        #check if api key is not set 
+        if not OPENAI_API_KEY: 
+            print(json.dumps({"error": "OpenAI API key not found, please set the OPENAI_API_KEY env variable"}))
+            sys.exit(1)
+    
+    try: 
+        #get doc summary from openAI
+        summary = get_document_summary(file_path)
+
+        print(json.dumps({"summary": summary}))
+
+    except Exception as e: 
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+</file>
+
+<file path="backend/requirements.txt">
+requests>=2.28.0
+python-docx>=0.8.11
+PyPDF2>=2.11.1
 </file>
 
 <file path="public/file.svg">
@@ -1115,44 +2061,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  env: {
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+  },
 };
 
 export default nextConfig;
-</file>
-
-<file path="package.json">
-{
-  "name": "ai-illuminati",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.0.2",
-    "@mui/material": "^7.0.2",
-    "axios": "^1.9.0",
-    "formidable": "^3.5.4",
-    "next": "15.3.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@types/formidable": "^3.4.5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.1",
-    "typescript": "^5"
-  }
-}
 </file>
 
 <file path="tsconfig.json">
@@ -1182,6 +2096,647 @@ export default nextConfig;
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
+}
+</file>
+
+<file path="app/layout.tsx">
+import AuthProvider from "./_components/AuthProvider";
+import AppLayout from "./_components/AppLayout";
+import "./globals.css";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <AuthProvider>
+          <AppLayout>{children}</AppLayout>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+// "use client";
+
+// import Image from "next/image";
+// import illuminatiBackground from "../public/IlluminatiBackground.jpg";
+// import { Box, Button, Container, Typography } from "@mui/material";
+// import { useState, useEffect, useRef } from "react";
+// import { DocumentUploader } from "./_components/DocumentUploader";
+// import { DocumentSummary } from "./_components/DocumentSummary";
+// import { UserProfile } from "./_components/UserProfile";
+// import { useSession } from "next-auth/react";
+// import { Sidebar } from "./_components/Sidebar";
+// import { v4 as uuidv4 } from "uuid";
+
+// // Define the SummaryItem interface
+// interface SummaryItem {
+//   id: string;
+//   fileName: string;
+//   summary: string;
+//   timestamp: Date;
+// }
+
+// export default function Home() {
+//   const [summary, setSummary] = useState<string>("");
+//   const [isLoading, setIsLoading] = useState<boolean>(false);
+//   const [error, setError] = useState<string>("");
+//   const [currentFileName, setCurrentFileName] = useState<string>("");
+//   const [summaries, setSummaries] = useState<SummaryItem[]>([]);
+//   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+//   const [uploaderKey, setUploaderKey] = useState<string>("initial");
+//   const { status } = useSession();
+
+//   // Counter for generic chat names
+//   const [chatCounter, setChatCounter] = useState<number>(1);
+
+//   // Load saved summaries from localStorage on initial render
+//   useEffect(() => {
+//     const savedSummaries = localStorage.getItem("documentSummaries");
+//     console.log("Checking localStorage for summaries...");
+//     if (savedSummaries) {
+//       try {
+//         // Parse stored JSON and convert string timestamps back to Date objects
+//         const parsedSummaries = JSON.parse(savedSummaries).map((item: any) => ({
+//           ...item,
+//           timestamp: new Date(item.timestamp),
+//         }));
+//         setSummaries(parsedSummaries);
+//         console.log(
+//           "✅ Loaded summaries from localStorage:",
+//           parsedSummaries.length,
+//           "items"
+//         );
+
+//         // Set the chat counter based on existing "Chat" entries
+//         const chatEntries = parsedSummaries.filter((item) =>
+//           item.fileName.startsWith("Chat v")
+//         );
+//         if (chatEntries.length > 0) {
+//           // Extract the highest number
+//           const highestNumber = chatEntries.reduce((max, item) => {
+//             const match = item.fileName.match(/Chat v(\d+)/);
+//             if (match && parseInt(match[1]) > max) {
+//               return parseInt(match[1]);
+//             }
+//             return max;
+//           }, 0);
+//           setChatCounter(highestNumber + 1);
+//         }
+//       } catch (e) {
+//         console.error("❌ Error parsing saved summaries:", e);
+//       }
+//     } else {
+//       console.log("No summaries found in localStorage");
+//     }
+//   }, []);
+
+//   // Save summaries to localStorage whenever they change
+//   useEffect(() => {
+//     console.log("Summaries state changed, current count:", summaries.length);
+//     if (summaries.length > 0) {
+//       localStorage.setItem("documentSummaries", JSON.stringify(summaries));
+//       console.log("✅ Saved summaries to localStorage");
+//     }
+//   }, [summaries]);
+
+//   // Function to create a versioned filename if it already exists
+//   const createVersionedFilename = (originalName: string) => {
+//     // Check if the name already exists in summaries
+//     const baseNameMatch = originalName.match(/^(.+?)(?:\s+v(\d+))?$/);
+
+//     if (!baseNameMatch) return originalName; // Should never happen
+
+//     const baseName = baseNameMatch[1];
+
+//     // Count existing versions with the same base name
+//     const existingVersions = summaries.filter((item) =>
+//       item.fileName.startsWith(baseName)
+//     ).length;
+
+//     // If no existing versions, return original name
+//     if (existingVersions === 0) return originalName;
+
+//     // Add version number (v2, v3, etc.)
+//     return `${baseName} v${existingVersions + 1}`;
+//   };
+
+//   // Get a fallback filename if none is provided
+//   const getFallbackFilename = () => {
+//     const fallbackName = `Chat v${chatCounter}`;
+//     setChatCounter((prevCounter) => prevCounter + 1);
+//     return fallbackName;
+//   };
+
+//   const handleSummaryReceived = (summaryText: string) => {
+//     console.log("📝 Summary received, current filename:", currentFileName);
+
+//     // Set the current summary text
+//     setSummary(summaryText);
+//     setIsLoading(false);
+
+//     // IMPORTANT: Ensure we have a filename, use fallback if needed
+//     let fileNameToUse = currentFileName;
+//     if (!fileNameToUse || fileNameToUse.trim() === "") {
+//       fileNameToUse = getFallbackFilename();
+//       console.log("⚠️ No filename available, using fallback:", fileNameToUse);
+//       setCurrentFileName(fileNameToUse);
+//     }
+
+//     // Create versioned filename if needed
+//     const versionedFileName = createVersionedFilename(fileNameToUse);
+//     console.log("Using filename:", versionedFileName);
+
+//     // Create the new summary object
+//     const newSummary = {
+//       id: uuidv4(),
+//       fileName: versionedFileName,
+//       summary: summaryText,
+//       timestamp: new Date(),
+//     };
+
+//     console.log("📌 Creating new summary item:", newSummary.fileName);
+
+//     // Update current filename with versioned one
+//     setCurrentFileName(versionedFileName);
+
+//     // CRITICAL: Add the new summary to the summaries array
+//     // Using a temporary array to ensure state is properly updated
+//     const newSummaries = [newSummary, ...summaries];
+//     setSummaries(newSummaries);
+
+//     console.log("✅ Updated summaries array, new count:", newSummaries.length);
+//   };
+
+//   const handleUploadStarted = (fileName: string) => {
+//     console.log("🔄 Upload started for file:", fileName);
+//     setIsLoading(true);
+//     setSummary("");
+//     setError("");
+
+//     // Store the filename - ensure it's not empty
+//     if (fileName && fileName.trim() !== "") {
+//       setCurrentFileName(fileName);
+//     } else {
+//       // If empty, don't set it yet - we'll use fallback when summary is received
+//       console.log("⚠️ Empty filename received from upload");
+//     }
+//   };
+
+//   const handleError = (errorMessage: string) => {
+//     console.error("❌ Error:", errorMessage);
+//     setError(errorMessage);
+//     setIsLoading(false);
+//   };
+
+//   const handleSummarySelect = (selectedSummary: SummaryItem) => {
+//     console.log("🔍 Selected summary from history:", selectedSummary.fileName);
+//     setSummary(selectedSummary.summary);
+//     setCurrentFileName(selectedSummary.fileName);
+
+//     // On mobile, close the sidebar after selection
+//     if (window.innerWidth < 768) {
+//       setIsSidebarOpen(false);
+//     }
+//   };
+
+//   const handleNewChat = () => {
+//     console.log("🔄 Starting new chat");
+//     // Clear all current state for a fresh new chat
+//     setSummary("");
+//     setCurrentFileName("");
+//     setError("");
+//     setIsLoading(false);
+
+//     // Force DocumentUploader to reset
+//     setUploaderKey(`uploader-${Date.now()}`);
+
+//     // On mobile, close the sidebar after starting new chat
+//     if (window.innerWidth < 768) {
+//       setIsSidebarOpen(false);
+//     }
+//   };
+
+//   const toggleSidebar = () => {
+//     setIsSidebarOpen((prev) => !prev);
+//   };
+
+//   // Debug output to console to see what's happening
+//   useEffect(() => {
+//     console.log("📊 Current state:", {
+//       summariesCount: summaries.length,
+//       currentFile: currentFileName,
+//       hasSummary: !!summary,
+//       isLoading,
+//       chatCounter,
+//     });
+//   }, [summaries, currentFileName, summary, isLoading, chatCounter]);
+
+//   if (status === "loading") {
+//     return (
+//       <Box
+//         sx={{
+//           display: "flex",
+//           justifyContent: "center",
+//           alignItems: "center",
+//           height: "100vh",
+//         }}
+//       >
+//         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+//       </Box>
+//     );
+//   }
+
+//   return (
+//     <Container maxWidth="xl" disableGutters>
+//       <Box
+//         sx={{
+//           display: "flex",
+//           flexDirection: "column",
+//           alignItems: "center",
+//           height: "100%",
+//           minHeight: "100vh",
+//           overflowY: "auto",
+//           position: "relative",
+//         }}
+//       >
+//         <Image
+//           src={illuminatiBackground}
+//           alt="Illuminati Background"
+//           layout="fill"
+//           objectFit="cover"
+//         />
+
+//         {/* Sidebar */}
+//         <Sidebar
+//           summaries={summaries}
+//           onSummarySelect={handleSummarySelect}
+//           onNewChat={handleNewChat}
+//           isOpen={isSidebarOpen}
+//           toggleSidebar={toggleSidebar}
+//         />
+
+//         <UserProfile />
+
+//         <Box
+//           sx={{
+//             position: "relative",
+//             zIndex: 2,
+//             display: "flex",
+//             flexDirection: "column",
+//             alignItems: "center",
+//             padding: "100px 20px 40px 20px",
+//             width: {
+//               xs: "100%",
+//               md: `calc(100% - ${isSidebarOpen ? "280px" : "50px"})`,
+//             },
+//             maxWidth: "800px",
+//             marginLeft: {
+//               xs: "auto",
+//               md: isSidebarOpen ? "280px" : "50px",
+//             },
+//             marginRight: "auto",
+//             transition: "width 0.3s ease, margin-left 0.3s ease",
+//           }}
+//         >
+//           <Typography
+//             variant="h1"
+//             sx={{
+//               top: 0,
+//               mt: 2,
+//               color: "#fff",
+//               fontFamily: "'Oswald', sans-serif",
+//               fontWeight: 700,
+//               letterSpacing: 2,
+//               textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+//               zIndex: 2,
+//               transition: "transform 0.3s ease",
+//             }}
+//           >
+//             NoteQA
+//           </Typography>
+//           <Typography variant="h3" align="center">
+//             AI Agent for your notes: Record, Summarize, & Query
+//           </Typography>
+
+//           <Box sx={{ marginTop: "80px", width: "100%" }}>
+//             <DocumentUploader
+//               onSummaryReceived={handleSummaryReceived}
+//               onUploadStarted={handleUploadStarted}
+//               onError={handleError}
+//               key={uploaderKey} // Force re-render when key changes
+//             />
+//             {isLoading && (
+//               <Box sx={{ mt: 8, alignItems: "center" }}>
+//                 <Typography variant="h6" color="primary">
+//                   Processing your document...
+//                 </Typography>
+//                 <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+//                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+//                 </Box>
+//               </Box>
+//             )}
+
+//             {error && (
+//               <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
+//                 <Typography variant="h6">{error}</Typography>
+//               </Box>
+//             )}
+
+//             {summary && (
+//               <Box sx={{ mt: 6, mb: 6 }}>
+//                 <DocumentSummary summary={summary} fileName={currentFileName} />
+//               </Box>
+//             )}
+//           </Box>
+//         </Box>
+//       </Box>
+//     </Container>
+//   );
+// }
+
+"use client";
+
+import { Box, Typography, Button } from "@mui/material";
+import { useState, useEffect, useRef } from "react";
+import { DocumentUploader } from "./_components/DocumentUploader";
+import { DocumentSummary } from "./_components/DocumentSummary";
+import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+import { v4 as uuidv4 } from "uuid";
+
+// Define the SummaryItem interface
+interface SummaryItem {
+  id: string;
+  fileName: string;
+  summary: string;
+  timestamp: Date;
+}
+
+export default function Home() {
+  const [summary, setSummary] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [currentFileName, setCurrentFileName] = useState<string>("");
+  const [summaries, setSummaries] = useState<SummaryItem[]>([]);
+  const [uploaderKey, setUploaderKey] = useState<string>("initial");
+  const { status } = useSession();
+  const searchParams = useSearchParams();
+
+  // Counter for generic chat names
+  const [chatCounter, setChatCounter] = useState<number>(1);
+
+  // Load saved summaries from localStorage on initial render
+  useEffect(() => {
+    const savedSummaries = localStorage.getItem("documentSummaries");
+    if (savedSummaries) {
+      try {
+        // Parse stored JSON and convert string timestamps back to Date objects
+        const parsedSummaries = JSON.parse(savedSummaries).map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp),
+        }));
+        setSummaries(parsedSummaries);
+
+        // Check if we have a summaryId in the URL
+        const summaryId = searchParams.get("summaryId");
+        if (summaryId) {
+          const selectedSummary = parsedSummaries.find(
+            (item) => item.id === summaryId
+          );
+          if (selectedSummary) {
+            setSummary(selectedSummary.summary);
+            setCurrentFileName(selectedSummary.fileName);
+          }
+        }
+
+        // Set the chat counter based on existing "Chat" entries
+        const chatEntries = parsedSummaries.filter((item) =>
+          item.fileName.startsWith("Chat v")
+        );
+        if (chatEntries.length > 0) {
+          // Extract the highest number
+          const highestNumber = chatEntries.reduce((max, item) => {
+            const match = item.fileName.match(/Chat v(\d+)/);
+            if (match && parseInt(match[1]) > max) {
+              return parseInt(match[1]);
+            }
+            return max;
+          }, 0);
+          setChatCounter(highestNumber + 1);
+        }
+      } catch (e) {
+        console.error("Error parsing saved summaries:", e);
+      }
+    }
+  }, [searchParams]);
+
+  // Save summaries to localStorage whenever they change
+  useEffect(() => {
+    if (summaries.length > 0) {
+      localStorage.setItem("documentSummaries", JSON.stringify(summaries));
+    }
+  }, [summaries]);
+
+  // Function to create a versioned filename if it already exists
+  const createVersionedFilename = (originalName: string) => {
+    // Check if the name already exists in summaries
+    const baseNameMatch = originalName.match(/^(.+?)(?:\s+v(\d+))?$/);
+
+    if (!baseNameMatch) return originalName; // Should never happen
+
+    const baseName = baseNameMatch[1];
+
+    // Count existing versions with the same base name
+    const existingVersions = summaries.filter((item) =>
+      item.fileName.startsWith(baseName)
+    ).length;
+
+    // If no existing versions, return original name
+    if (existingVersions === 0) return originalName;
+
+    // Add version number (v2, v3, etc.)
+    return `${baseName} v${existingVersions + 1}`;
+  };
+
+  // Get a fallback filename if none is provided
+  const getFallbackFilename = () => {
+    const fallbackName = `Chat v${chatCounter}`;
+    setChatCounter((prevCounter) => prevCounter + 1);
+    return fallbackName;
+  };
+
+  const handleSummaryReceived = (summaryText: string) => {
+    // Set the current summary text
+    setSummary(summaryText);
+    setIsLoading(false);
+
+    // IMPORTANT: Ensure we have a filename, use fallback if needed
+    let fileNameToUse = currentFileName;
+    if (!fileNameToUse || fileNameToUse.trim() === "") {
+      fileNameToUse = getFallbackFilename();
+      setCurrentFileName(fileNameToUse);
+    }
+
+    // Create versioned filename if needed
+    const versionedFileName = createVersionedFilename(fileNameToUse);
+
+    // Create the new summary object
+    const newSummary = {
+      id: uuidv4(),
+      fileName: versionedFileName,
+      summary: summaryText,
+      timestamp: new Date(),
+    };
+
+    // Update current filename with versioned one
+    setCurrentFileName(versionedFileName);
+
+    // Add the new summary to the summaries array
+    const newSummaries = [newSummary, ...summaries];
+    setSummaries(newSummaries);
+  };
+
+  const handleUploadStarted = (fileName: string) => {
+    setIsLoading(true);
+    setSummary("");
+    setError("");
+
+    // Store the filename - ensure it's not empty
+    if (fileName && fileName.trim() !== "") {
+      setCurrentFileName(fileName);
+    }
+  };
+
+  const handleError = (errorMessage: string) => {
+    setError(errorMessage);
+    setIsLoading(false);
+  };
+
+  const handleNewChat = () => {
+    // Clear all current state for a fresh new chat
+    setSummary("");
+    setCurrentFileName("");
+    setError("");
+    setIsLoading(false);
+
+    // Force DocumentUploader to reset
+    setUploaderKey(`uploader-${Date.now()}`);
+  };
+
+  if (status === "loading") {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+      </Box>
+    );
+  }
+
+  return (
+    <>
+      <Typography
+        variant="h1"
+        sx={{
+          top: 0,
+          mt: 2,
+          color: "#fff",
+          fontFamily: "'Oswald', sans-serif",
+          fontWeight: 700,
+          letterSpacing: 2,
+          textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+          zIndex: 2,
+          transition: "transform 0.3s ease",
+        }}
+      >
+        NoteQA
+      </Typography>
+      <Typography variant="h3" align="center">
+        AI Agent for your notes: Record, Summarize, & Query
+      </Typography>
+
+      <Box sx={{ marginTop: "80px", width: "100%" }}>
+        <DocumentUploader
+          onSummaryReceived={handleSummaryReceived}
+          onUploadStarted={handleUploadStarted}
+          onError={handleError}
+          key={uploaderKey} // Force re-render when key changes
+        />
+        {isLoading && (
+          <Box sx={{ mt: 8, alignItems: "center" }}>
+            <Typography variant="h6" color="primary">
+              Processing your document...
+            </Typography>
+            <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+            </Box>
+          </Box>
+        )}
+
+        {error && (
+          <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
+            <Typography variant="h6">{error}</Typography>
+          </Box>
+        )}
+
+        {summary && (
+          <Box sx={{ mt: 6, mb: 6 }}>
+            <DocumentSummary summary={summary} fileName={currentFileName} />
+          </Box>
+        )}
+      </Box>
+    </>
+  );
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "ai-illuminati",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.1.0",
+    "@mui/material": "^7.1.0",
+    "axios": "^1.9.0",
+    "formidable": "^3.5.4",
+    "next": "15.3.1",
+    "next-auth": "^4.24.11",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/formidable": "^3.4.5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^9.0.8",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "typescript": "^5"
+  }
 }
 </file>
 
@@ -1225,6 +2780,99 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 To start python virtual environment:
 source backend/venv/bin/activate
+
+## Setup
+
+1. Clone this repository
+2. Install dependencies: `npm install`
+3. Set up Python environment: `pip install requests`
+4. Set your OpenAI API key:
+   - create .env.local and add OPENAI_API_KEY
+5. Start the development server: `npm run dev`
+6. Open http://localhost:3000 in your browser
+
+## Project Structure
+
+- `/components`: React components
+- `/app`: Next.js app router
+- `/backend`: Python backend for OpenAI
+- `/uploads`: Temporary storage for uploaded documents
+
+# Document Summarizer Backend
+
+This directory contains the Python scripts used for document processing and integration with OpenAI's API.
+
+## Setup
+
+### Prerequisites
+
+- Python 3.8 or higher
+- OpenAI API key with access to GPT-4 Vision
+
+### Virtual Environment Setup
+
+1. Create the virtual environment (if not already created):
+
+   ```bash
+   python -m venv venv
+   ```
+
+2. Activate the virtual environment:
+
+   - On Windows:
+     ```bash
+     venv\Scripts\activate
+     ```
+   - On macOS/Linux:
+     ```bash
+     source venv/bin/activate
+     ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### API Key Configuration
+
+Set your OpenAI API key as an environment variable:
+
+- On Windows:
+
+  ```bash
+  set OPENAI_API_KEY=your-openai-api-key
+  ```
+
+- On macOS/Linux:
+  ```bash
+  export OPENAI_API_KEY=your-openai-api-key
+  ```
+
+For production, consider using a more secure method to store your API key, such as environment variables in your deployment platform or a secrets management service.
+
+## Usage
+
+The Python script is designed to be called from the Next.js API route and not directly. However, for testing purposes, you can run:
+
+```bash
+python process_document.py /path/to/document.pdf
+```
+
+The script will output a JSON object containing the document summary.
+
+## Configuration
+
+You can modify the following aspects of the script:
+
+- `max_tokens`: Controls the length of the generated summary (default: 1000)
+- The system prompt to change how the document is analyzed
+- The OpenAI model, though GPT-4 Vision is recommended for document analysis
+
+## Troubleshooting
+
+- If you encounter an error about the OpenAI API key, make sure it's set correctly as an environment variable
+- If the script fails to process certain file types, check that they're supported by GPT-4 Vision
+- For large documents, consider breaking them into smaller chunks or adjusting the max_tokens parameter
 </file>
 
 </files>
