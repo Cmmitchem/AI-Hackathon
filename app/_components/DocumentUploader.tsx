@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Box, Typography, Button, Paper, Stack } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -7,9 +7,11 @@ import SendIcon from "@mui/icons-material/Send";
 
 interface DocumentUploaderProps {
   onSummaryReceived: (summary: string) => void;
-  onUploadStarted: () => void;
+  onUploadStarted: (fileName: string) => void;
   onError: (error: string) => void;
+  key?: string; // Added to detect when parent component wants a reset
 }
+
 export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   onSummaryReceived,
   onUploadStarted,
@@ -18,9 +20,19 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reset state when props change or component re-mounts
+  useEffect(() => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    console.log("DocumentUploader reset");
+  }, []);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
+      console.log("File selected:", files[0].name);
       setSelectedFile(files[0]);
     }
   };
@@ -32,7 +44,9 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       return;
     }
 
-    onUploadStarted();
+    // CRITICAL: Always pass the filename to the parent component
+    console.log("Starting upload for file:", selectedFile.name);
+    onUploadStarted(selectedFile.name);
 
     const formData = new FormData();
     formData.append("document", selectedFile);
@@ -44,8 +58,19 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         },
       });
 
+      console.log("Upload response:", response.data);
+
       if (response.data && response.data.summary) {
-        onSummaryReceived(response.data.summary);
+        console.log("Summary received, length:", response.data.summary.length);
+        // Make one more check that we're passing a summary to the callback
+        if (
+          typeof response.data.summary === "string" &&
+          response.data.summary.trim() !== ""
+        ) {
+          onSummaryReceived(response.data.summary);
+        } else {
+          onError("Received empty summary from server");
+        }
       } else {
         onError("No summary received from the server.");
       }
@@ -58,10 +83,12 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
   };
+
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     const files = event.dataTransfer.files;
     if (files && files.length > 0) {
+      console.log("File dropped:", files[0].name);
       setSelectedFile(files[0]);
     }
   };
@@ -71,6 +98,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    console.log("File selection reset");
   };
 
   return (
@@ -99,7 +127,6 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
               style={{ display: "none" }}
               ref={fileInputRef}
               accept=".pdf,.doc,.docx,.txt"
-              //style={{ display: "none" }}
             />
             <Button
               variant="contained"

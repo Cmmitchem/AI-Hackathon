@@ -1,9 +1,13 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Chip } from "@mui/material";
+import Description from "@mui/icons-material/Description";
+
 interface DocumentSummaryProps {
   summary: string;
+  fileName?: string;
 }
 export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
   summary,
+  fileName,
 }) => {
   return (
     <Box
@@ -18,9 +22,18 @@ export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
         boxShadow: 3,
       }}
     >
-      <Typography variant="h4" gutterBottom>
-        Document Summary
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+        <Typography variant="h4" gutterBottom>
+          Document Summary
+        </Typography>
+        {fileName && (
+          <Chip
+            icon={<Description />}
+            label={fileName}
+            sx={{ ml: 2, backgroundColor: "rgba(255,255,255,0.2)" }}
+          ></Chip>
+        )}
+      </Box>
       <Typography variant="body1">{summary}</Typography>
     </Box>
   );
