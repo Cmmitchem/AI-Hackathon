@@ -1,22 +1,29 @@
 // "use client";
 
-// import Image from "next/image";
-// import illuminatiBackground from "../public/IlluminatiBackground.jpg";
-// import { Box, Button, Container, Typography } from "@mui/material";
-// import { useState, useEffect, useRef } from "react";
+// import { Box, Typography, Button } from "@mui/material";
+// import { useState, useEffect, useRef, useCallback } from "react";
 // import { DocumentUploader } from "./_components/DocumentUploader";
 // import { DocumentSummary } from "./_components/DocumentSummary";
-// import { UserProfile } from "./_components/UserProfile";
+// import { ChatInterface } from "./_components/ChatInterface";
 // import { useSession } from "next-auth/react";
-// import { Sidebar } from "./_components/Sidebar";
+// import { useSearchParams } from "next/navigation";
 // import { v4 as uuidv4 } from "uuid";
 
-// // Define the SummaryItem interface
+// // Define the Message interface
+// interface Message {
+//   sender: "user" | "assistant";
+//   text: string;
+//   timestamp: Date;
+// }
+
+// // Update the SummaryItem interface to include chat messages and type
 // interface SummaryItem {
 //   id: string;
 //   fileName: string;
 //   summary: string;
 //   timestamp: Date;
+//   messages?: Message[];
+//   type: "file" | "chat"; // Add type to distinguish between files and chats
 // }
 
 // export default function Home() {
@@ -25,9 +32,16 @@
 //   const [error, setError] = useState<string>("");
 //   const [currentFileName, setCurrentFileName] = useState<string>("");
 //   const [summaries, setSummaries] = useState<SummaryItem[]>([]);
-//   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 //   const [uploaderKey, setUploaderKey] = useState<string>("initial");
+//   const [currentSummaryId, setCurrentSummaryId] = useState<string>("");
+//   const [chatMessages, setChatMessages] = useState<Message[]>([]);
+//   const [showChat, setShowChat] = useState<boolean>(false);
+//   const [showUploader, setShowUploader] = useState<boolean>(false);
+//   const [currentItemType, setCurrentItemType] = useState<"file" | "chat" | "">(
+//     ""
+//   );
 //   const { status } = useSession();
+//   const searchParams = useSearchParams();
 
 //   // Counter for generic chat names
 //   const [chatCounter, setChatCounter] = useState<number>(1);
@@ -35,57 +49,149 @@
 //   // Load saved summaries from localStorage on initial render
 //   useEffect(() => {
 //     const savedSummaries = localStorage.getItem("documentSummaries");
-//     console.log("Checking localStorage for summaries...");
 //     if (savedSummaries) {
 //       try {
-//         // Parse stored JSON and convert string timestamps back to Date objects
 //         const parsedSummaries = JSON.parse(savedSummaries).map((item: any) => ({
 //           ...item,
 //           timestamp: new Date(item.timestamp),
+//           messages: item.messages
+//             ? item.messages.map((msg: any) => ({
+//                 ...msg,
+//                 timestamp: new Date(msg.timestamp),
+//               }))
+//             : [],
+//           // Ensure type property exists for backward compatibility
+//           type: item.type || "file",
 //         }));
 //         setSummaries(parsedSummaries);
-//         console.log(
-//           "✅ Loaded summaries from localStorage:",
-//           parsedSummaries.length,
-//           "items"
-//         );
 
-//         // Set the chat counter based on existing "Chat" entries
-//         const chatEntries = parsedSummaries.filter((item) =>
-//           item.fileName.startsWith("Chat v")
-//         );
-//         if (chatEntries.length > 0) {
-//           // Extract the highest number
-//           const highestNumber = chatEntries.reduce((max, item) => {
-//             const match = item.fileName.match(/Chat v(\d+)/);
-//             if (match && parseInt(match[1]) > max) {
-//               return parseInt(match[1]);
+//         // Check if we have a summaryId in the URL
+//         const summaryId = searchParams.get("summaryId");
+//         const action = searchParams.get("action");
+
+//         if (summaryId) {
+//           const selectedSummary = parsedSummaries.find(
+//             (item) => item.id === summaryId
+//           );
+//           if (selectedSummary) {
+//             setSummary(selectedSummary.summary || "");
+//             setCurrentFileName(selectedSummary.fileName);
+//             setCurrentSummaryId(selectedSummary.id);
+//             setChatMessages(selectedSummary.messages || []);
+//             // Set the current item type
+//             setCurrentItemType(selectedSummary.type || "file");
+
+//             // Show the appropriate interface based on item type and action
+//             if (selectedSummary.type === "chat") {
+//               setShowChat(true);
+//               setShowUploader(false);
+//             } else {
+//               // For files, show the document summary if it exists
+//               if (selectedSummary.summary) {
+//                 // Don't automatically show chat for documents - this is the key change
+//                 setShowChat(false);
+//                 setShowUploader(false);
+//               } else if (action === "upload") {
+//                 // Show uploader if specifically requested
+//                 setShowUploader(true);
+//                 setShowChat(false);
+//               } else {
+//                 // Default to showing the uploader for files without summaries
+//                 setShowUploader(true);
+//                 setShowChat(false);
+//               }
 //             }
-//             return max;
-//           }, 0);
-//           setChatCounter(highestNumber + 1);
+//           } else {
+//             // Clear state if summaryId is invalid
+//             setSummary("");
+//             setCurrentFileName("");
+//             setCurrentSummaryId("");
+//             setChatMessages([]);
+//             setShowChat(false);
+//             setShowUploader(false);
+//             setCurrentItemType("");
+//           }
+//         } else {
+//           // No summaryId means we should show a fresh state
+//           console.log("No summaryId, clearing state");
+//           setSummary("");
+//           setCurrentFileName("");
+//           setCurrentSummaryId("");
+//           setChatMessages([]);
+//           setShowChat(false);
+//           setShowUploader(false);
+//           setCurrentItemType("");
 //         }
 //       } catch (e) {
-//         console.error("❌ Error parsing saved summaries:", e);
+//         console.error("Error parsing saved summaries:", e);
 //       }
-//     } else {
-//       console.log("No summaries found in localStorage");
 //     }
-//   }, []);
+//   }, [searchParams]);
 
 //   // Save summaries to localStorage whenever they change
 //   useEffect(() => {
-//     console.log("Summaries state changed, current count:", summaries.length);
 //     if (summaries.length > 0) {
 //       localStorage.setItem("documentSummaries", JSON.stringify(summaries));
-//       console.log("✅ Saved summaries to localStorage");
 //     }
+
+//     const event = new CustomEvent("summariesUpdated", { detail: summaries });
+//     window.dispatchEvent(event);
 //   }, [summaries]);
+
+//   // Listen for custom events from Sidebar component
+//   useEffect(() => {
+//     const handleNewChatRequested = (event: CustomEvent) => {
+//       if (event.detail && event.detail.name) {
+//         setCurrentFileName(event.detail.name);
+//       }
+//     };
+
+//     const handleNewDocumentRequested = (event: CustomEvent) => {
+//       if (event.detail && event.detail.name) {
+//         setCurrentFileName(event.detail.name);
+//       }
+//     };
+
+//     window.addEventListener(
+//       "newChatRequested",
+//       handleNewChatRequested as EventListener
+//     );
+
+//     window.addEventListener(
+//       "newDocumentRequested",
+//       handleNewDocumentRequested as EventListener
+//     );
+
+//     return () => {
+//       window.removeEventListener(
+//         "newChatRequested",
+//         handleNewChatRequested as EventListener
+//       );
+//       window.removeEventListener(
+//         "newDocumentRequested",
+//         handleNewDocumentRequested as EventListener
+//       );
+//     };
+//   }, []);
+
+//   // Function to handle chat messages and update the summary item
+//   const handleChatMessages = (messages: Message[]) => {
+//     setChatMessages(messages);
+
+//     // Update the current summary with chat messages
+//     if (currentSummaryId) {
+//       const updatedSummaries = summaries.map((item) =>
+//         item.id === currentSummaryId ? { ...item, messages: messages } : item
+//       );
+
+//       setSummaries(updatedSummaries);
+//     }
+//   };
 
 //   // Function to create a versioned filename if it already exists
 //   const createVersionedFilename = (originalName: string) => {
 //     // Check if the name already exists in summaries
-//     const baseNameMatch = originalName.match(/^(.+?)(?:\s+v(\d+))?$/);
+//     const baseNameMatch = originalName.match(/^(.+?)(?:\\s+v(\\d+))?$/);
 
 //     if (!baseNameMatch) return originalName; // Should never happen
 
@@ -110,109 +216,249 @@
 //     return fallbackName;
 //   };
 
-//   const handleSummaryReceived = (summaryText: string) => {
-//     console.log("📝 Summary received, current filename:", currentFileName);
+//   const getFirstSentenceFromSummary = (summary: string) => {
+//     const match = summary.match(/^.*?[.!?](?:\s|$)/);
+//     if (match && match[0]) {
+//       let sentence = match[0].trim();
+//       if (sentence.length > 30) {
+//         sentence = sentence.substring(0, 27) + "...";
+//       }
+//       return sentence;
+//     }
+//     return `Summary ${new Date().toLocaleDateString()}`;
+//   };
 
+//   // const handleSummaryReceived = (summaryText: string) => {
+//   //   // Set the current summary text
+//   //   setSummary(summaryText);
+//   //   setIsLoading(false);
+
+//   //   // CHANGE: Don't automatically show chat after summary is received
+//   //   setShowChat(false);
+//   //   setShowUploader(false);
+
+//   //   // IMPORTANT: Ensure we have a filename, use fallback if needed
+//   //   let fileNameToUse = currentFileName;
+//   //   if (!fileNameToUse || fileNameToUse.trim() === "") {
+//   //     fileNameToUse = getFirstSentenceFromSummary(summaryText);
+//   //   }
+
+//   //   // Create versioned filename if needed
+//   //   const versionedFileName = createVersionedFilename(fileNameToUse);
+
+//   //   // Update the existing summary if we have a currentSummaryId
+//   //   if (currentSummaryId) {
+//   //     const updatedSummaries = summaries.map((item) =>
+//   //       item.id === currentSummaryId
+//   //         ? {
+//   //             ...item,
+//   //             summary: summaryText,
+//   //             fileName: versionedFileName,
+//   //             timestamp: new Date(),
+//   //           }
+//   //         : item
+//   //     );
+
+//   //     setSummaries(updatedSummaries);
+
+//   //     // Update current filename with versioned one
+//   //     setCurrentFileName(versionedFileName);
+//   //   } else {
+//   //     // Create a new summary if no currentSummaryId
+//   //     const newSummaryId = uuidv4();
+//   //     const newSummary = {
+//   //       id: newSummaryId,
+//   //       fileName: versionedFileName,
+//   //       summary: summaryText,
+//   //       timestamp: new Date(),
+//   //       messages: [], // Initialize with empty messages array
+//   //       type: "file" as const, // Mark as file type
+//   //     };
+
+//   //     // Set current summary ID
+//   //     setCurrentSummaryId(newSummaryId);
+//   //     setChatMessages([]); // Clear any previous chat messages
+
+//   //     // Update current filename with versioned one
+//   //     setCurrentFileName(versionedFileName);
+
+//   //     // Add the new summary to the summaries array
+//   //     const newSummaries = [newSummary, ...summaries];
+//   //     setSummaries(newSummaries);
+//   //   }
+
+//   //   setUploaderKey(`uploader-summary-${Date.now()}`);
+//   // };
+//   const handleSummaryReceived = (summaryText: string) => {
 //     // Set the current summary text
 //     setSummary(summaryText);
 //     setIsLoading(false);
+//     setShowChat(false);
+//     setShowUploader(false);
 
-//     // IMPORTANT: Ensure we have a filename, use fallback if needed
-//     let fileNameToUse = currentFileName;
-//     if (!fileNameToUse || fileNameToUse.trim() === "") {
-//       fileNameToUse = getFallbackFilename();
-//       console.log("⚠️ No filename available, using fallback:", fileNameToUse);
+//     // Use the current file name as entered by the user
+//     const fileNameToUse = currentFileName;
+
+//     // Update the existing summary if we have a currentSummaryId
+//     if (currentSummaryId) {
+//       const updatedSummaries = summaries.map((item) =>
+//         item.id === currentSummaryId
+//           ? {
+//               ...item,
+//               summary: summaryText,
+//               fileName: fileNameToUse,
+//               timestamp: new Date(),
+//             }
+//           : item
+//       );
+
+//       setSummaries(updatedSummaries);
 //       setCurrentFileName(fileNameToUse);
+//     } else {
+//       // Create a new summary if no currentSummaryId
+//       const newSummaryId = uuidv4();
+//       const newSummary = {
+//         id: newSummaryId,
+//         fileName: fileNameToUse,
+//         summary: summaryText,
+//         timestamp: new Date(),
+//         messages: [], // Initialize with empty messages array
+//         type: "file" as const, // Mark as file type
+//       };
+
+//       // Set current summary ID
+//       setCurrentSummaryId(newSummaryId);
+//       setChatMessages([]); // Clear any previous chat messages
+
+//       // Update current filename
+//       setCurrentFileName(fileNameToUse);
+
+//       // Add the new summary to the summaries array
+//       const newSummaries = [newSummary, ...summaries];
+//       setSummaries(newSummaries);
 //     }
 
-//     // Create versioned filename if needed
-//     const versionedFileName = createVersionedFilename(fileNameToUse);
-//     console.log("Using filename:", versionedFileName);
-
-//     // Create the new summary object
-//     const newSummary = {
-//       id: uuidv4(),
-//       fileName: versionedFileName,
-//       summary: summaryText,
-//       timestamp: new Date(),
-//     };
-
-//     console.log("📌 Creating new summary item:", newSummary.fileName);
-
-//     // Update current filename with versioned one
-//     setCurrentFileName(versionedFileName);
-
-//     // CRITICAL: Add the new summary to the summaries array
-//     // Using a temporary array to ensure state is properly updated
-//     const newSummaries = [newSummary, ...summaries];
-//     setSummaries(newSummaries);
-
-//     console.log("✅ Updated summaries array, new count:", newSummaries.length);
+//     setUploaderKey(`uploader-summary-${Date.now()}`);
 //   };
 
 //   const handleUploadStarted = (fileName: string) => {
-//     console.log("🔄 Upload started for file:", fileName);
 //     setIsLoading(true);
 //     setSummary("");
+
 //     setError("");
+//     setShowChat(false); // Hide chat while processing
 
 //     // Store the filename - ensure it's not empty
 //     if (fileName && fileName.trim() !== "") {
 //       setCurrentFileName(fileName);
-//     } else {
-//       // If empty, don't set it yet - we'll use fallback when summary is received
-//       console.log("⚠️ Empty filename received from upload");
 //     }
 //   };
 
 //   const handleError = (errorMessage: string) => {
-//     console.error("❌ Error:", errorMessage);
 //     setError(errorMessage);
 //     setIsLoading(false);
 //   };
 
-//   const handleSummarySelect = (selectedSummary: SummaryItem) => {
-//     console.log("🔍 Selected summary from history:", selectedSummary.fileName);
-//     setSummary(selectedSummary.summary);
-//     setCurrentFileName(selectedSummary.fileName);
-
-//     // On mobile, close the sidebar after selection
-//     if (window.innerWidth < 768) {
-//       setIsSidebarOpen(false);
+//   // Determine what to display based on current state
+//   const renderContent = () => {
+//     if (isLoading) {
+//       return (
+//         <Box
+//           sx={{
+//             mt: 8,
+//             display: "flex",
+//             alignItems: "center",
+//             justifyContent: "center",
+//           }}
+//         >
+//           <Typography variant="h6" color="primary">
+//             Processing your document...
+//           </Typography>
+//           <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+//             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+//           </Box>
+//         </Box>
+//       );
 //     }
-//   };
 
-//   const handleNewChat = () => {
-//     console.log("🔄 Starting new chat");
-//     // Clear all current state for a fresh new chat
-//     setSummary("");
-//     setCurrentFileName("");
-//     setError("");
-//     setIsLoading(false);
-
-//     // Force DocumentUploader to reset
-//     setUploaderKey(`uploader-${Date.now()}`);
-
-//     // On mobile, close the sidebar after starting new chat
-//     if (window.innerWidth < 768) {
-//       setIsSidebarOpen(false);
+//     if (error) {
+//       return (
+//         <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
+//           <Typography variant="h6">{error}</Typography>
+//         </Box>
+//       );
 //     }
-//   };
 
-//   const toggleSidebar = () => {
-//     setIsSidebarOpen((prev) => !prev);
-//   };
+//     // For files with summaries, show ONLY the summary (without chat interface)
+//     if (currentItemType === "file" && summary) {
+//       return (
+//         <Box sx={{ display: "flex", mt: 6, mb: 6, justifyContent: "center" }}>
+//           <DocumentSummary summary={summary} fileName={currentFileName} />
+//         </Box>
+//       );
+//     }
 
-//   // Debug output to console to see what's happening
-//   useEffect(() => {
-//     console.log("📊 Current state:", {
-//       summariesCount: summaries.length,
-//       currentFile: currentFileName,
-//       hasSummary: !!summary,
-//       isLoading,
-//       chatCounter,
-//     });
-//   }, [summaries, currentFileName, summary, isLoading, chatCounter]);
+//     // For files without summaries or when explicitly showing uploader
+//     if (currentItemType === "file" && showUploader) {
+//       return (
+//         <Box sx={{ mt: 8, width: "100%" }}>
+//           <Typography variant="h4" align="center" gutterBottom>
+//             Upload Your Document
+//           </Typography>
+//           <Typography variant="subtitle1" align="center" sx={{ mb: 4 }}>
+//             Document name: <strong>{currentFileName}</strong>
+//           </Typography>
+//           <DocumentUploader
+//             onSummaryReceived={handleSummaryReceived}
+//             onUploadStarted={handleUploadStarted}
+//             onError={handleError}
+//             key={uploaderKey}
+//           />
+//         </Box>
+//       );
+//     }
+
+//     // For chat-only interfaces
+
+//     if (currentItemType === "chat") {
+//       return (
+//         <Box
+//           sx={{
+//             display: "flex",
+//             mt: 4,
+//             mb: 6,
+//             justifyContent: "center",
+//             width: "100%",
+//           }}
+//         >
+//           <Box sx={{ width: "100%", maxWidth: "800px" }}>
+//             <Typography variant="h4" align="center" gutterBottom>
+//               Chat: {currentFileName}
+//             </Typography>
+//             <ChatInterface
+//               onMessageSent={handleChatMessages}
+//               initialMessages={chatMessages}
+//               documentSummary=""
+//               currentSummaryId={currentSummaryId} // Pass the current summary ID
+//             />
+//           </Box>
+//         </Box>
+//       );
+//     }
+
+//     // Default welcome state when nothing is selected
+//     return (
+//       <Box sx={{ mt: 8, textAlign: "center" }}>
+//         <Typography variant="h4" gutterBottom>
+//           Welcome to NoteQA
+//         </Typography>
+//         <Typography variant="body1" sx={{ mt: 2, mb: 4 }}>
+//           To get started, select "Analyze New Document" or "Start New Chat" from
+//           the sidebar.
+//         </Typography>
+//       </Box>
+//     );
+//   };
 
 //   if (status === "loading") {
 //     return (
@@ -230,129 +476,58 @@
 //   }
 
 //   return (
-//     <Container maxWidth="xl" disableGutters>
-//       <Box
+//     <>
+//       <Typography
+//         variant="h1"
 //         sx={{
-//           display: "flex",
-//           flexDirection: "column",
-//           alignItems: "center",
-//           height: "100%",
-//           minHeight: "100vh",
-//           overflowY: "auto",
-//           position: "relative",
+//           top: 0,
+//           mt: 2,
+//           color: "#fff",
+//           fontFamily: "'Oswald', sans-serif",
+//           fontWeight: 700,
+//           letterSpacing: 2,
+//           textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+//           zIndex: 2,
+//           transition: "transform 0.3s ease",
 //         }}
 //       >
-//         <Image
-//           src={illuminatiBackground}
-//           alt="Illuminati Background"
-//           layout="fill"
-//           objectFit="cover"
-//         />
+//         NoteQA
+//       </Typography>
+//       <Typography variant="h3" align="center">
+//         AI Agent for your notes: Record, Summarize, & Query
+//       </Typography>
 
-//         {/* Sidebar */}
-//         <Sidebar
-//           summaries={summaries}
-//           onSummarySelect={handleSummarySelect}
-//           onNewChat={handleNewChat}
-//           isOpen={isSidebarOpen}
-//           toggleSidebar={toggleSidebar}
-//         />
-
-//         <UserProfile />
-
-//         <Box
-//           sx={{
-//             position: "relative",
-//             zIndex: 2,
-//             display: "flex",
-//             flexDirection: "column",
-//             alignItems: "center",
-//             padding: "100px 20px 40px 20px",
-//             width: {
-//               xs: "100%",
-//               md: `calc(100% - ${isSidebarOpen ? "280px" : "50px"})`,
-//             },
-//             maxWidth: "800px",
-//             marginLeft: {
-//               xs: "auto",
-//               md: isSidebarOpen ? "280px" : "50px",
-//             },
-//             marginRight: "auto",
-//             transition: "width 0.3s ease, margin-left 0.3s ease",
-//           }}
-//         >
-//           <Typography
-//             variant="h1"
-//             sx={{
-//               top: 0,
-//               mt: 2,
-//               color: "#fff",
-//               fontFamily: "'Oswald', sans-serif",
-//               fontWeight: 700,
-//               letterSpacing: 2,
-//               textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
-//               zIndex: 2,
-//               transition: "transform 0.3s ease",
-//             }}
-//           >
-//             NoteQA
-//           </Typography>
-//           <Typography variant="h3" align="center">
-//             AI Agent for your notes: Record, Summarize, & Query
-//           </Typography>
-
-//           <Box sx={{ marginTop: "80px", width: "100%" }}>
-//             <DocumentUploader
-//               onSummaryReceived={handleSummaryReceived}
-//               onUploadStarted={handleUploadStarted}
-//               onError={handleError}
-//               key={uploaderKey} // Force re-render when key changes
-//             />
-//             {isLoading && (
-//               <Box sx={{ mt: 8, alignItems: "center" }}>
-//                 <Typography variant="h6" color="primary">
-//                   Processing your document...
-//                 </Typography>
-//                 <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
-//                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-//                 </Box>
-//               </Box>
-//             )}
-
-//             {error && (
-//               <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
-//                 <Typography variant="h6">{error}</Typography>
-//               </Box>
-//             )}
-
-//             {summary && (
-//               <Box sx={{ mt: 6, mb: 6 }}>
-//                 <DocumentSummary summary={summary} fileName={currentFileName} />
-//               </Box>
-//             )}
-//           </Box>
-//         </Box>
-//       </Box>
-//     </Container>
+//       <Box sx={{ marginTop: "80px", width: "100%" }}>{renderContent()}</Box>
+//     </>
 //   );
 // }
 
 "use client";
 
 import { Box, Typography, Button } from "@mui/material";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { DocumentUploader } from "./_components/DocumentUploader";
 import { DocumentSummary } from "./_components/DocumentSummary";
+import { ChatInterface } from "./_components/ChatInterface";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
-// Define the SummaryItem interface
+// Define the Message interface
+interface Message {
+  sender: "user" | "assistant";
+  text: string;
+  timestamp: Date;
+}
+
+// Update the SummaryItem interface to include chat messages and type
 interface SummaryItem {
   id: string;
   fileName: string;
   summary: string;
   timestamp: Date;
+  messages?: Message[];
+  type: "file" | "chat"; // Add type to distinguish between files and chats
 }
 
 export default function Home() {
@@ -362,6 +537,13 @@ export default function Home() {
   const [currentFileName, setCurrentFileName] = useState<string>("");
   const [summaries, setSummaries] = useState<SummaryItem[]>([]);
   const [uploaderKey, setUploaderKey] = useState<string>("initial");
+  const [currentSummaryId, setCurrentSummaryId] = useState<string>("");
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [showChat, setShowChat] = useState<boolean>(false);
+  const [showUploader, setShowUploader] = useState<boolean>(false);
+  const [currentItemType, setCurrentItemType] = useState<"file" | "chat" | "">(
+    ""
+  );
   const { status } = useSession();
   const searchParams = useSearchParams();
 
@@ -373,39 +555,76 @@ export default function Home() {
     const savedSummaries = localStorage.getItem("documentSummaries");
     if (savedSummaries) {
       try {
-        // Parse stored JSON and convert string timestamps back to Date objects
         const parsedSummaries = JSON.parse(savedSummaries).map((item: any) => ({
           ...item,
           timestamp: new Date(item.timestamp),
+          messages: item.messages
+            ? item.messages.map((msg: any) => ({
+                ...msg,
+                timestamp: new Date(msg.timestamp),
+              }))
+            : [],
+          // Ensure type property exists for backward compatibility
+          type: item.type || "file",
         }));
         setSummaries(parsedSummaries);
 
         // Check if we have a summaryId in the URL
         const summaryId = searchParams.get("summaryId");
+        const action = searchParams.get("action");
+
         if (summaryId) {
           const selectedSummary = parsedSummaries.find(
             (item) => item.id === summaryId
           );
           if (selectedSummary) {
-            setSummary(selectedSummary.summary);
+            setSummary(selectedSummary.summary || "");
             setCurrentFileName(selectedSummary.fileName);
-          }
-        }
+            setCurrentSummaryId(selectedSummary.id);
+            setChatMessages(selectedSummary.messages || []);
+            // Set the current item type
+            setCurrentItemType(selectedSummary.type || "file");
 
-        // Set the chat counter based on existing "Chat" entries
-        const chatEntries = parsedSummaries.filter((item) =>
-          item.fileName.startsWith("Chat v")
-        );
-        if (chatEntries.length > 0) {
-          // Extract the highest number
-          const highestNumber = chatEntries.reduce((max, item) => {
-            const match = item.fileName.match(/Chat v(\d+)/);
-            if (match && parseInt(match[1]) > max) {
-              return parseInt(match[1]);
+            // Show the appropriate interface based on item type and action
+            if (selectedSummary.type === "chat") {
+              setShowChat(true);
+              setShowUploader(false);
+            } else {
+              // For files, show the document summary if it exists
+              if (selectedSummary.summary) {
+                // Don't automatically show chat for documents - this is the key change
+                setShowChat(false);
+                setShowUploader(false);
+              } else if (action === "upload") {
+                // Show uploader if specifically requested
+                setShowUploader(true);
+                setShowChat(false);
+              } else {
+                // Default to showing the uploader for files without summaries
+                setShowUploader(true);
+                setShowChat(false);
+              }
             }
-            return max;
-          }, 0);
-          setChatCounter(highestNumber + 1);
+          } else {
+            // Clear state if summaryId is invalid
+            setSummary("");
+            setCurrentFileName("");
+            setCurrentSummaryId("");
+            setChatMessages([]);
+            setShowChat(false);
+            setShowUploader(false);
+            setCurrentItemType("");
+          }
+        } else {
+          // No summaryId means we should show a fresh state
+          console.log("No summaryId, clearing state");
+          setSummary("");
+          setCurrentFileName("");
+          setCurrentSummaryId("");
+          setChatMessages([]);
+          setShowChat(false);
+          setShowUploader(false);
+          setCurrentItemType("");
         }
       } catch (e) {
         console.error("Error parsing saved summaries:", e);
@@ -418,12 +637,65 @@ export default function Home() {
     if (summaries.length > 0) {
       localStorage.setItem("documentSummaries", JSON.stringify(summaries));
     }
+
+    const event = new CustomEvent("summariesUpdated", { detail: summaries });
+    window.dispatchEvent(event);
   }, [summaries]);
+
+  // Listen for custom events from Sidebar component
+  useEffect(() => {
+    const handleNewChatRequested = (event: CustomEvent) => {
+      if (event.detail && event.detail.name) {
+        setCurrentFileName(event.detail.name);
+      }
+    };
+
+    const handleNewDocumentRequested = (event: CustomEvent) => {
+      if (event.detail && event.detail.name) {
+        setCurrentFileName(event.detail.name);
+      }
+    };
+
+    window.addEventListener(
+      "newChatRequested",
+      handleNewChatRequested as EventListener
+    );
+
+    window.addEventListener(
+      "newDocumentRequested",
+      handleNewDocumentRequested as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "newChatRequested",
+        handleNewChatRequested as EventListener
+      );
+      window.removeEventListener(
+        "newDocumentRequested",
+        handleNewDocumentRequested as EventListener
+      );
+    };
+  }, []);
+
+  // Function to handle chat messages and update the summary item
+  const handleChatMessages = (messages: Message[]) => {
+    setChatMessages(messages);
+
+    // Update the current summary with chat messages
+    if (currentSummaryId) {
+      const updatedSummaries = summaries.map((item) =>
+        item.id === currentSummaryId ? { ...item, messages: messages } : item
+      );
+
+      setSummaries(updatedSummaries);
+    }
+  };
 
   // Function to create a versioned filename if it already exists
   const createVersionedFilename = (originalName: string) => {
     // Check if the name already exists in summaries
-    const baseNameMatch = originalName.match(/^(.+?)(?:\s+v(\d+))?$/);
+    const baseNameMatch = originalName.match(/^(.+?)(?:\\s+v(\\d+))?$/);
 
     if (!baseNameMatch) return originalName; // Should never happen
 
@@ -448,41 +720,76 @@ export default function Home() {
     return fallbackName;
   };
 
+  const getFirstSentenceFromSummary = (summary: string) => {
+    const match = summary.match(/^.*?[.!?](?:\s|$)/);
+    if (match && match[0]) {
+      let sentence = match[0].trim();
+      if (sentence.length > 30) {
+        sentence = sentence.substring(0, 27) + "...";
+      }
+      return sentence;
+    }
+    return `Summary ${new Date().toLocaleDateString()}`;
+  };
+
   const handleSummaryReceived = (summaryText: string) => {
     // Set the current summary text
     setSummary(summaryText);
     setIsLoading(false);
+    setShowChat(false);
+    setShowUploader(false);
 
-    // IMPORTANT: Ensure we have a filename, use fallback if needed
-    let fileNameToUse = currentFileName;
-    if (!fileNameToUse || fileNameToUse.trim() === "") {
-      fileNameToUse = getFallbackFilename();
+    // Use the current file name as entered by the user
+    const fileNameToUse = currentFileName;
+
+    // Update the existing summary if we have a currentSummaryId
+    if (currentSummaryId) {
+      const updatedSummaries = summaries.map((item) =>
+        item.id === currentSummaryId
+          ? {
+              ...item,
+              summary: summaryText,
+              fileName: fileNameToUse,
+              timestamp: new Date(),
+            }
+          : item
+      );
+
+      setSummaries(updatedSummaries);
       setCurrentFileName(fileNameToUse);
+    } else {
+      // Create a new summary if no currentSummaryId
+      const newSummaryId = uuidv4();
+      const newSummary = {
+        id: newSummaryId,
+        fileName: fileNameToUse,
+        summary: summaryText,
+        timestamp: new Date(),
+        messages: [], // Initialize with empty messages array
+        type: "file" as const, // Mark as file type
+      };
+
+      // Set current summary ID
+      setCurrentSummaryId(newSummaryId);
+      setChatMessages([]); // Clear any previous chat messages
+
+      // Update current filename
+      setCurrentFileName(fileNameToUse);
+
+      // Add the new summary to the summaries array
+      const newSummaries = [newSummary, ...summaries];
+      setSummaries(newSummaries);
     }
 
-    // Create versioned filename if needed
-    const versionedFileName = createVersionedFilename(fileNameToUse);
-
-    // Create the new summary object
-    const newSummary = {
-      id: uuidv4(),
-      fileName: versionedFileName,
-      summary: summaryText,
-      timestamp: new Date(),
-    };
-
-    // Update current filename with versioned one
-    setCurrentFileName(versionedFileName);
-
-    // Add the new summary to the summaries array
-    const newSummaries = [newSummary, ...summaries];
-    setSummaries(newSummaries);
+    setUploaderKey(`uploader-summary-${Date.now()}`);
   };
 
   const handleUploadStarted = (fileName: string) => {
     setIsLoading(true);
     setSummary("");
+
     setError("");
+    setShowChat(false); // Hide chat while processing
 
     // Store the filename - ensure it's not empty
     if (fileName && fileName.trim() !== "") {
@@ -495,15 +802,161 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  const handleNewChat = () => {
-    // Clear all current state for a fresh new chat
-    setSummary("");
-    setCurrentFileName("");
-    setError("");
-    setIsLoading(false);
+  // Determine what to display based on current state
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            mt: 8,
+          }}
+        >
+          <Typography variant="h6" color="#FFFFFF">
+            Processing your document...
+          </Typography>
+          <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+          </Box>
+        </Box>
+      );
+    }
 
-    // Force DocumentUploader to reset
-    setUploaderKey(`uploader-${Date.now()}`);
+    if (error) {
+      return (
+        <Box sx={{ mt: 4, color: "#FF5555", textAlign: "center" }}>
+          <Typography variant="h6">{error}</Typography>
+        </Box>
+      );
+    }
+
+    // For files with summaries, show the summary
+    if (currentItemType === "file" && summary) {
+      return (
+        <>
+          <Box
+            sx={{
+              display: "flex",
+              mt: 6,
+              mb: 6,
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            <DocumentSummary summary={summary} fileName={currentFileName} />
+          </Box>
+          <Box
+            sx={{
+              display: "flex",
+              mt: 4,
+              mb: 6,
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setShowChat(true)}
+              sx={{ mb: 2 }}
+            >
+              Ask Questions About This Document
+            </Button>
+          </Box>
+          {showChat && (
+            <Box
+              sx={{
+                display: "flex",
+                mt: 4,
+                mb: 6,
+                justifyContent: "center",
+                width: "100%",
+              }}
+            >
+              <ChatInterface
+                onMessageSent={handleChatMessages}
+                initialMessages={chatMessages}
+                documentSummary={summary}
+                currentSummaryId={currentSummaryId} // Pass the current summary ID
+              />
+            </Box>
+          )}
+        </>
+      );
+    }
+
+    // For files without summaries or when explicitly showing uploader
+    if (currentItemType === "file" && showUploader) {
+      return (
+        <Box sx={{ mt: 8, width: "100%" }}>
+          <Typography variant="h4" align="center" gutterBottom color="#FFFFFF">
+            Upload Your Document
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            align="center"
+            sx={{ mb: 4 }}
+            color="#FFFFFF"
+          >
+            Document name: <strong>{currentFileName}</strong>
+          </Typography>
+          <DocumentUploader
+            onSummaryReceived={handleSummaryReceived}
+            onUploadStarted={handleUploadStarted}
+            onError={handleError}
+            key={uploaderKey}
+          />
+        </Box>
+      );
+    }
+
+    // For chat-only interfaces
+    if (currentItemType === "chat") {
+      return (
+        <Box
+          sx={{
+            display: "flex",
+            mt: 4,
+            mb: 6,
+            justifyContent: "center",
+            width: "100%",
+          }}
+        >
+          <Box sx={{ width: "100%", maxWidth: "800px" }}>
+            <Typography
+              variant="h4"
+              align="center"
+              gutterBottom
+              color="#FFFFFF"
+            >
+              Chat: {currentFileName}
+            </Typography>
+            <ChatInterface
+              onMessageSent={handleChatMessages}
+              initialMessages={chatMessages}
+              documentSummary=""
+              currentSummaryId={currentSummaryId} // Pass the current summary ID
+            />
+          </Box>
+        </Box>
+      );
+    }
+
+    // Default welcome state when nothing is selected
+    return (
+      <Box sx={{ mt: 8, textAlign: "center" }}>
+        <Typography variant="h4" gutterBottom color="#FFFFFF">
+          Welcome to NoteQA
+        </Typography>
+        <Typography variant="body1" sx={{ mt: 2, mb: 4 }} color="#FFFFFF">
+          To get started, select "Analyze New Document" or "Start New Chat" from
+          the sidebar.
+        </Typography>
+      </Box>
+    );
   };
 
   if (status === "loading") {
@@ -516,63 +969,68 @@ export default function Home() {
           height: "100vh",
         }}
       >
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
       </Box>
     );
   }
 
   return (
-    <>
-      <Typography
-        variant="h1"
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        width: "100%",
+      }}
+    >
+      {/* Header Title Area - Centered */}
+      <Box
         sx={{
-          top: 0,
-          mt: 2,
-          color: "#fff",
-          fontFamily: "'Oswald', sans-serif",
-          fontWeight: 700,
-          letterSpacing: 2,
-          textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
-          zIndex: 2,
-          transition: "transform 0.3s ease",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          mt: 4,
+          mb: 6,
         }}
       >
-        NoteQA
-      </Typography>
-      <Typography variant="h3" align="center">
-        AI Agent for your notes: Record, Summarize, & Query
-      </Typography>
-
-      <Box sx={{ marginTop: "80px", width: "100%" }}>
-        <DocumentUploader
-          onSummaryReceived={handleSummaryReceived}
-          onUploadStarted={handleUploadStarted}
-          onError={handleError}
-          key={uploaderKey} // Force re-render when key changes
-        />
-        {isLoading && (
-          <Box sx={{ mt: 8, alignItems: "center" }}>
-            <Typography variant="h6" color="primary">
-              Processing your document...
-            </Typography>
-            <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-            </Box>
-          </Box>
-        )}
-
-        {error && (
-          <Box sx={{ mt: 4, color: "red", textAlign: "center" }}>
-            <Typography variant="h6">{error}</Typography>
-          </Box>
-        )}
-
-        {summary && (
-          <Box sx={{ mt: 6, mb: 6 }}>
-            <DocumentSummary summary={summary} fileName={currentFileName} />
-          </Box>
-        )}
+        <Typography
+          variant="h1"
+          sx={{
+            color: "#FFFFFF",
+            fontFamily: "'Oswald', sans-serif",
+            fontWeight: 700,
+            letterSpacing: 2,
+            textShadow: "2px 2px 8px rgba(0,0,0,0.5)",
+            zIndex: 2,
+            textAlign: "center",
+          }}
+        >
+          NoteQA
+        </Typography>
+        <Typography
+          variant="h3"
+          sx={{
+            color: "#FFFFFF",
+            textAlign: "center",
+            mt: 2,
+            maxWidth: "90%", // Prevent extremely long lines on small screens
+          }}
+        >
+          AI Agent for your notes: Record, Summarize, & Query
+        </Typography>
       </Box>
-    </>
+
+      {/* Main Content Area */}
+      <Box
+        sx={{
+          width: "100%",
+          mt: 4,
+        }}
+      >
+        {renderContent()}
+      </Box>
+    </Box>
   );
 }

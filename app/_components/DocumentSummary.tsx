@@ -22,7 +22,14 @@ export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
         boxShadow: 3,
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          mb: 2,
+          justifyContent: "center",
+        }}
+      >
         <Typography variant="h4" gutterBottom>
           Document Summary
         </Typography>
@@ -34,7 +41,9 @@ export const DocumentSummary: React.FC<DocumentSummaryProps> = ({
           ></Chip>
         )}
       </Box>
-      <Typography variant="body1">{summary}</Typography>
+      <Typography variant="body1" sx={{ textAlign: "center" }}>
+        {summary}
+      </Typography>
     </Box>
   );
 };
